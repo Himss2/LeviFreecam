@@ -1,192 +1,311 @@
-#include "NativeCameraController.hpp"
+#include "camera/NativeCameraController.hpp"
 
-#include "CameraState.hpp"
-#include "CameraHook.hpp"
+#include "camera/CameraController.hpp"
 
-#include <android/log.h>
+namespace levifreecam::camera {
 
+namespace {
 
-#define LOG_TAG "LeviFreecam"
+CameraState gCameraState;
 
-
-#define LOGI(...) \
-__android_log_print(
-ANDROID_LOG_INFO,
-LOG_TAG,
-__VA_ARGS__
-)
+} // namespace
 
 
-namespace levifreecam::camera
-{
+CameraState&
+getCameraState() noexcept {
 
-
-static CameraState gCameraState;
-
-
-CameraState& getCameraState()
-{
     return gCameraState;
 }
 
 
-
 NativeCameraController&
 NativeCameraController::instance()
-{
-    static NativeCameraController controller;
+    noexcept {
+
+    static NativeCameraController
+        controller;
 
     return controller;
 }
 
 
+bool NativeCameraController::enable()
+    noexcept {
 
-bool NativeCameraController::resolve()
-{
+    auto& state =
+        getCameraState();
 
-    if(mResolved)
+    if (
+        state.enabled.load(
+            std::memory_order_acquire
+        )
+    ) {
         return true;
-
+    }
 
     /*
-        TODO:
-
-        Resolve:
-
-        _ZN27CameraInstructionSystemUtil5_tickE
-
-
-        setelah address ARM64 final ditemukan,
-        resolver ini akan mengembalikan address
-    */
-
-
-    mCameraInstructionTick = 0;
-
-
-    if(mCameraInstructionTick == 0)
-    {
-
-        LOGI(
-        "CameraInstructionSystem::_tick not resolved"
-        );
-
-
-        return false;
-    }
-
-
-
-    mResolved = true;
-
-
-    return true;
-}
-
-
-
-bool NativeCameraController::enable()
-{
-
-    if(mEnabled)
-        return true;
-
-
-
-    if(!resolve())
-    {
-        LOGI(
-        "Native camera resolve failed"
-        );
-
-        return false;
-    }
-
-
-
-    if(!installCameraHook())
-    {
-        LOGI(
-        "Camera hook failed"
-        );
-
-        return false;
-    }
-
-
-
-    gCameraState.enabled = true;
-
-
-    mEnabled = true;
-
-
-
-    LOGI(
-    "Native camera enabled"
+     * Kamera asli akan dicapture
+     * pada callback CameraHook berikutnya.
+     */
+    state.captured.store(
+        false,
+        std::memory_order_release
     );
 
+    state.captureRequested.store(
+        true,
+        std::memory_order_release
+    );
+
+    state.enabled.store(
+        true,
+        std::memory_order_release
+    );
 
     return true;
 }
-
-
 
 
 bool NativeCameraController::disable()
-{
+    noexcept {
 
-    gCameraState.enabled = false;
+    auto& state =
+        getCameraState();
 
-
-    mEnabled = false;
-
-
-    LOGI(
-    "Native camera disabled"
+    state.enabled.store(
+        false,
+        std::memory_order_release
     );
 
+    state.captureRequested.store(
+        false,
+        std::memory_order_release
+    );
 
+    state.captured.store(
+        false,
+        std::memory_order_release
+    );
+
+    mLastCameraComponent.store(
+        nullptr,
+        std::memory_order_release
+    );
+
+    /*
+     * Tidak perlu menulis posisi vanilla kembali.
+     *
+     * Tick berikutnya Minecraft otomatis
+     * menguasai CameraComponent lagi.
+     */
     return true;
 }
 
 
+bool NativeCameraController::isEnabled()
+    const noexcept {
 
-
-bool NativeCameraController::isEnabled() const
-{
-    return mEnabled;
+    return
+        getCameraState().
+        enabled.load(
+            std::memory_order_acquire
+        );
 }
 
 
+bool
+NativeCameraController::cameraCaptured()
+    const noexcept {
+
+    return
+        getCameraState().
+        captured.load(
+            std::memory_order_acquire
+        );
+}
 
 
 void NativeCameraController::update()
-{
-
-    if(!mEnabled)
-        return;
-
-
+    noexcept {
 
     /*
-        tahap pertama:
-
-        test camera offset
-
-        nanti diganti:
-
-        CameraInstruction
-        position
-        rotation
-
-    */
-
-
-    gCameraState.y += 5.0f;
-
+     * Belum melakukan movement.
+     *
+     * Posisi diterapkan melalui
+     * onCameraTransform().
+     *
+     * Fungsi ini sengaja dipertahankan
+     * sebagai game-thread integration point
+     * untuk CameraFlyMove berikutnya.
+     */
 }
 
 
+void
+NativeCameraController::onCameraTransform(
+    void* cameraComponent
+) noexcept {
 
+    if (
+        cameraComponent == nullptr
+    ) {
+        return;
+    }
+
+    auto& state =
+        getCameraState();
+
+    if (
+        !state.enabled.load(
+            std::memory_order_acquire
+        )
+    ) {
+        return;
+    }
+
+    mLastCameraComponent.store(
+        cameraComponent,
+        std::memory_order_release
+    );
+
+    auto& camera =
+        CameraController::instance();
+
+    const bool needsCapture =
+
+        state.captureRequested.exchange(
+            false,
+            std::memory_order_acq_rel
+        )
+
+        ||
+
+        !state.captured.load(
+            std::memory_order_acquire
+        );
+
+    if (needsCapture) {
+
+        Vec3 position{};
+
+        CameraOrientation
+            orientation{};
+
+        if (
+            !camera.readPosition(
+                cameraComponent,
+                position
+            )
+        ) {
+
+            state.captureRequested.store(
+                true,
+                std::memory_order_release
+            );
+
+            return;
+        }
+
+        if (
+            !camera.readOrientation(
+                cameraComponent,
+                orientation
+            )
+        ) {
+
+            state.captureRequested.store(
+                true,
+                std::memory_order_release
+            );
+
+            return;
+        }
+
+        state.position =
+            position;
+
+        state.orientation =
+            orientation;
+
+        state.captured.store(
+            true,
+            std::memory_order_release
+        );
+
+        /*
+         * Frame pertama menggunakan
+         * transform vanilla persis.
+         */
+        return;
+    }
+
+    /*
+     * ======================================================
+     * NATIVE FREECAM V1
+     * ======================================================
+     *
+     * Minecraft sudah menghitung:
+     *
+     * - attach
+     * - camera shake
+     * - vanilla player position
+     *
+     * tetapi setelah itu posisi kamera
+     * kita kembalikan ke state Freecam.
+     *
+     * Player tidak disentuh.
+     */
+    camera.writePosition(
+        cameraComponent,
+        state.position
+    );
 }
+
+
+void NativeCameraController::translate(
+    float x,
+    float y,
+    float z
+) noexcept {
+
+    auto& state =
+        getCameraState();
+
+    if (
+        !state.enabled.load(
+            std::memory_order_acquire
+        )
+
+        ||
+
+        !state.captured.load(
+            std::memory_order_acquire
+        )
+    ) {
+        return;
+    }
+
+    state.position.x += x;
+    state.position.y += y;
+    state.position.z += z;
+}
+
+
+void NativeCameraController::requestRecapture()
+    noexcept {
+
+    auto& state =
+        getCameraState();
+
+    state.captured.store(
+        false,
+        std::memory_order_release
+    );
+
+    state.captureRequested.store(
+        true,
+        std::memory_order_release
+    );
+}
+
+} // namespace levifreecam::camera
