@@ -6,68 +6,169 @@
 
 namespace levifreecam {
 
-FreecamMod &FreecamMod::instance() {
+FreecamMod& FreecamMod::instance() {
     static FreecamMod mod;
     return mod;
 }
 
-FreecamMod::FreecamMod() : mSelf(*ll::mod::NativeMod::current()) {}
+FreecamMod::FreecamMod()
+    : mSelf(*ll::mod::NativeMod::current()) {
+}
 
-ll::mod::NativeMod &FreecamMod::getSelf() const noexcept {
+ll::mod::NativeMod&
+FreecamMod::getSelf() const noexcept {
     return mSelf;
 }
 
 bool FreecamMod::load() {
-    auto &self = getSelf();
-    self.getLogger().info("Loading Levi Freecam v0.1.0");
-    self.getLogger().info("Foundation build: no Minecraft hooks are installed yet");
+    getSelf().getLogger().info(
+        "Loading Levi Freecam v0.2.0"
+    );
+
     return true;
 }
 
 bool FreecamMod::enable() {
-    auto &self = getSelf();
+    auto& self = getSelf();
 
-    const bool registered = mModMenu.registerAll(
-        self.getId(),
-        [this](bool enabled) { setFeatureEnabled(enabled); });
+    /*
+     * ---------------------------------------------------------
+     * Install Minecraft network hook.
+     * ---------------------------------------------------------
+     *
+     * Target:
+     *
+     * LoopbackPacketSender::sendToServer(Packet&)
+     *
+     */
+    if (!mPacketHook.install()) {
+        self.getLogger().error(
+            "Failed to install "
+            "LoopbackPacketSender::sendToServer hook. "
+            "The signature may not match this Minecraft build."
+        );
 
-    if (!registered) {
-        self.getLogger().error("Failed to register Freecam module/button in Mod Menu");
         return false;
     }
 
-    self.getLogger().info("Freecam Mod Menu integration enabled");
+    self.getLogger().info(
+        "sendToServer hook installed at 0x{:x}",
+        mPacketHook.targetAddress()
+    );
+
+    /*
+     * ---------------------------------------------------------
+     * Register Levi Mod Menu + CAM button.
+     * ---------------------------------------------------------
+     */
+    const bool registered =
+        mModMenu.registerAll(
+            self.getId(),
+
+            [this](bool enabled) {
+                setModuleEnabled(enabled);
+            },
+
+            [this](bool active) {
+                setCameraActive(active);
+            }
+        );
+
+    if (!registered) {
+        self.getLogger().error(
+            "Failed to register Freecam module/CAM button"
+        );
+
+        mPacketHook.uninstall();
+
+        return false;
+    }
+
+    self.getLogger().info(
+        "Freecam hook foundation ready. "
+        "Enable Freecam in Mod Menu to show CAM."
+    );
+
     return true;
 }
 
 bool FreecamMod::disable() {
-    auto &self = getSelf();
+    auto& controller =
+        FreecamController::instance();
 
-    // This call is already important in v0.1.0 and becomes safety-critical
-    // once spectator spoof and packet suppression are added.
-    FreecamController::instance().forceDisable();
+    /*
+     * Always reset feature state BEFORE removing hooks.
+     *
+     * This becomes extremely important once the spectator
+     * spoof is implemented.
+     */
+    controller.setModuleEnabled(false);
+    controller.forceDisable();
+
     mModMenu.unregisterAll();
 
-    self.getLogger().info("Levi Freecam disabled");
+    mPacketHook.uninstall();
+
+    getSelf().getLogger().info(
+        "Levi Freecam disabled"
+    );
+
     return true;
 }
 
 bool FreecamMod::unload() {
-    FreecamController::instance().forceDisable();
+    auto& controller =
+        FreecamController::instance();
+
+    controller.setModuleEnabled(false);
+    controller.forceDisable();
+
     mModMenu.unregisterAll();
-    getSelf().getLogger().info("Levi Freecam unloaded");
+
+    mPacketHook.uninstall();
+
+    getSelf().getLogger().info(
+        "Levi Freecam unloaded"
+    );
+
     return true;
 }
 
-void FreecamMod::setFeatureEnabled(bool enabled) {
-    auto &controller = FreecamController::instance();
-    controller.setEnabled(enabled);
+void FreecamMod::setModuleEnabled(
+    bool enabled
+) {
+    auto& controller =
+        FreecamController::instance();
+
+    controller.setModuleEnabled(enabled);
 
     getSelf().getLogger().info(
-        "Freecam state = {} (v0.1.0 state-only; gameplay hook not active yet)",
-        enabled ? "ON" : "OFF");
+        "Freecam module = {}",
+        enabled ? "ON" : "OFF"
+    );
+}
+
+void FreecamMod::setCameraActive(
+    bool active
+) {
+    auto& controller =
+        FreecamController::instance();
+
+    controller.setActive(active);
+
+    getSelf().getLogger().info(
+        "CAM = {} "
+        "(hook active, spectator spoof pending)",
+        controller.active()
+            ? "ON"
+            : "OFF"
+    );
 }
 
 } // namespace levifreecam
 
-PL_REGISTER_MOD(levifreecam::FreecamMod, levifreecam::FreecamMod::instance())
+
+PL_REGISTER_MOD(
+    levifreecam::FreecamMod,
+    levifreecam::FreecamMod::instance()
+)
