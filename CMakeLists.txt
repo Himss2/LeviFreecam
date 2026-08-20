@@ -39,8 +39,10 @@ add_library(
 
     src/FreecamMod.cpp
     src/core/FreecamController.cpp
-    src/ui/ModMenu.cpp
+    src/game/GameModeController.cpp
     src/hooks/PacketHook.cpp
+    src/hooks/PlayerHook.cpp
+    src/ui/ModMenu.cpp
 )
 
 set_target_properties(
@@ -74,6 +76,19 @@ if(LEVI_FREECAM_LOG_LIB)
     )
 endif()
 
+find_library(
+    LEVI_FREECAM_DL_LIB
+    dl
+)
+
+if(LEVI_FREECAM_DL_LIB)
+    target_link_libraries(
+        levi_freecam
+        PRIVATE
+        "${LEVI_FREECAM_DL_LIB}"
+    )
+endif()
+
 target_compile_options(
     levi_freecam
     PRIVATE
@@ -102,6 +117,5 @@ target_link_options(
     PRIVATE
 
     -Wl,--gc-sections
-
     -Wl,-z,max-page-size=16384
 )
