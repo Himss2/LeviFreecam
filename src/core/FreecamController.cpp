@@ -15,12 +15,13 @@ constexpr char kLogTag[] =
     "Levi Freecam";
 
 /*
- * Minecraft normal tick = sekitar 20 TPS.
+ * Minecraft normally runs game logic
+ * around 20 ticks per second.
  *
- * 4 tick sekitar 200 ms.
+ * Four ticks is approximately 200 ms.
  *
- * Ambient juga terlihat melakukan
- * refresh spectator sekitar 200 ms.
+ * Ambient Freecam also periodically
+ * reasserts its local spectator state.
  */
 constexpr std::uint32_t
     kSpectatorRefreshIntervalTicks =
@@ -50,12 +51,13 @@ void FreecamController::setModuleEnabled(
     if (!enabled) {
 
         /*
-         * Jangan langsung menghapus
-         * mSpectatorApplied.
+         * Request Freecam OFF.
          *
-         * Kita masih harus memblokir
-         * PlayerAuthInput selama gamemode
-         * belum direstore.
+         * Do NOT clear spectatorApplied here.
+         *
+         * PlayerAuthInput must remain blocked
+         * until the original GameType has been
+         * restored by onLocalPlayerTick().
          */
         mRequestedActive.store(
             false,
@@ -70,8 +72,8 @@ void FreecamController::setActive(
 ) noexcept {
 
     /*
-     * CAM tidak boleh ON apabila module
-     * Freecam utama OFF.
+     * CAM cannot be activated while the
+     * Freecam module itself is disabled.
      */
     if (
         active &&
@@ -81,15 +83,22 @@ void FreecamController::setActive(
     }
 
     /*
-     * Callback tombol hanya meminta state.
+     * Only request a state change here.
      *
-     * Kita tidak menyentuh LocalPlayer
-     * langsung dari UI thread.
+     * Minecraft player functions are called
+     * later from LocalPlayer::normalTick.
      */
     mRequestedActive.store(
         active,
         std::memory_order_release
     );
+
+    if (!active) {
+        mWaitingForPacketHookLogged.store(
+            false,
+            std::memory_order_release
+        );
+    }
 }
 
 
@@ -106,24 +115,24 @@ void FreecamController::onLocalPlayerTick(
             instance();
 
     /*
-     * Simpan LocalPlayer terbaru.
+     * Track current LocalPlayer object.
      */
     void* previousPlayer =
         mCurrentPlayer.exchange(
-
             localPlayer,
-
             std::memory_order_acq_rel
         );
 
     /*
-     * Pointer berubah biasanya berarti:
+     * LocalPlayer changed.
      *
-     * - masuk world
-     * - pindah dimension
-     * - player object dibuat ulang
+     * This can happen when:
      *
-     * Jangan pernah dereference object lama.
+     * - entering a world
+     * - changing dimension
+     * - player object recreation
+     *
+     * Never use state belonging to the old object.
      */
     if (
         previousPlayer != nullptr &&
@@ -144,41 +153,83 @@ void FreecamController::onLocalPlayerTick(
             0,
             std::memory_order_release
         );
+
+        mWaitingForPacketHookLogged.store(
+            false,
+            std::memory_order_release
+        );
     }
 
     /*
-     * Tidak ada GameType API.
-     *
-     * Tetap aman.
-     * Packet tidak akan diblokir.
+     * GameType functions must be resolved.
      */
     if (!gameMode.available()) {
         return;
     }
 
     const bool wantsFreecam =
-
         moduleEnabled() &&
-
         mRequestedActive.load(
             std::memory_order_acquire
         );
 
-
     /*
-     * =====================================================
+     * ======================================================
      * FREECAM ON
-     * =====================================================
+     * ======================================================
      */
     if (wantsFreecam) {
 
         /*
-         * Belum spectator.
+         * ==================================================
+         * SAFETY CHECK
+         * ==================================================
          *
-         * Simpan original GameType.
+         * Before entering local spectator we require proof
+         * that PacketHook has successfully identified at
+         * least one PlayerAuthInput packet.
+         *
+         * Otherwise there would be a risk that spectator
+         * movement gets sent to the server.
+         */
+        if (
+            !spectatorApplied() &&
+            playerAuthInputSeen() == 0
+        ) {
+
+            bool expected =
+                false;
+
+            if (
+                mWaitingForPacketHookLogged.
+                    compare_exchange_strong(
+                        expected,
+                        true,
+                        std::memory_order_acq_rel
+                    )
+            ) {
+
+                __android_log_print(
+                    ANDROID_LOG_WARN,
+                    kLogTag,
+                    "CAM waiting for "
+                    "PlayerAuthInput validation"
+                );
+            }
+
+            return;
+        }
+
+        /*
+         * ==================================================
+         * FIRST ACTIVATION
+         * ==================================================
          */
         if (!spectatorApplied()) {
 
+            /*
+             * Read original GameType.
+             */
             const auto originalGameType =
                 gameMode.getLocalGameType(
                     localPlayer
@@ -187,13 +238,21 @@ void FreecamController::onLocalPlayerTick(
             if (
                 !originalGameType.has_value()
             ) {
+
+                __android_log_print(
+                    ANDROID_LOG_ERROR,
+                    kLogTag,
+                    "Failed to read original GameType"
+                );
+
                 return;
             }
 
+            /*
+             * Save original GameType.
+             */
             mOriginalGameType.store(
-
                 *originalGameType,
-
                 std::memory_order_release
             );
 
@@ -203,16 +262,19 @@ void FreecamController::onLocalPlayerTick(
             );
 
             /*
-             * Terapkan spectator hanya ke
-             * LocalPlayer.
+             * ==================================================
+             * LOCAL SPECTATOR
+             * ==================================================
              *
-             * Tidak memberi tahu server.
+             * GameType::Spectator = 6.
+             *
+             * This calls the exact local client GameType
+             * routine resolved from the supplied
+             * libminecraftpe.so.
              */
             if (
                 !gameMode.setLocalGameType(
-
                     localPlayer,
-
                     game::GameType::Spectator
                 )
             ) {
@@ -222,15 +284,20 @@ void FreecamController::onLocalPlayerTick(
                     std::memory_order_release
                 );
 
+                __android_log_print(
+                    ANDROID_LOG_ERROR,
+                    kLogTag,
+                    "Failed to apply local spectator"
+                );
+
                 return;
             }
 
             /*
-             * PENTING:
+             * IMPORTANT:
              *
-             * PlayerAuthInput baru boleh
-             * diblokir setelah spectator
-             * berhasil diterapkan.
+             * Only after local spectator has been applied
+             * may PacketHook begin dropping PlayerAuthInput.
              */
             mSpectatorApplied.store(
                 true,
@@ -242,15 +309,16 @@ void FreecamController::onLocalPlayerTick(
                 std::memory_order_release
             );
 
+            mWaitingForPacketHookLogged.store(
+                false,
+                std::memory_order_release
+            );
+
             __android_log_print(
-
                 ANDROID_LOG_INFO,
-
                 kLogTag,
-
-                "Freecam ON: local spectator "
-                "applied, original GameType=%d",
-
+                "Freecam ON: local spectator applied, "
+                "original GameType=%d",
                 *originalGameType
             );
 
@@ -258,24 +326,19 @@ void FreecamController::onLocalPlayerTick(
         }
 
         /*
-         * =================================================
-         * REFRESH SPECTATOR
-         * =================================================
+         * ==================================================
+         * SPECTATOR REFRESH
+         * ==================================================
          *
-         * Server/game state kadang mencoba
-         * mengembalikan gamemode client.
+         * The server or game may occasionally overwrite
+         * local client state.
          *
-         * Maka spectator kita apply kembali
-         * setiap sekitar 200 ms.
+         * Reapply spectator approximately every 200 ms.
          */
         const std::uint32_t refreshTicks =
-
             mSpectatorRefreshTicks.fetch_add(
-
                 1,
-
                 std::memory_order_acq_rel
-
             ) + 1;
 
         if (
@@ -284,9 +347,7 @@ void FreecamController::onLocalPlayerTick(
         ) {
 
             gameMode.setLocalGameType(
-
                 localPlayer,
-
                 game::GameType::Spectator
             );
 
@@ -299,17 +360,15 @@ void FreecamController::onLocalPlayerTick(
         return;
     }
 
-
     /*
-     * =====================================================
+     * ======================================================
      * FREECAM OFF
-     * =====================================================
+     * ======================================================
      *
-     * CAM sudah OFF tetapi local player
-     * mungkin masih spectator.
+     * CAM has been turned OFF.
      *
-     * Jangan buka PlayerAuthInput sampai
-     * original GameType berhasil direstore.
+     * PlayerAuthInput remains blocked until the original
+     * local GameType is restored.
      */
     if (spectatorApplied()) {
 
@@ -320,30 +379,26 @@ void FreecamController::onLocalPlayerTick(
         ) {
 
             /*
-             * Kita tidak tahu mode original.
+             * We cannot safely restore an unknown mode.
              *
-             * Lebih aman tetap suppress packet
-             * daripada mengirim posisi Freecam
-             * ke server.
+             * Keep packet suppression active instead of
+             * sending the detached camera position.
              */
             return;
         }
 
         const std::int32_t
             originalGameType =
-
                 mOriginalGameType.load(
                     std::memory_order_acquire
                 );
 
         /*
-         * Restore original client GameType.
+         * Restore original client-side GameType.
          */
         if (
             !gameMode.setLocalGameType(
-
                 localPlayer,
-
                 originalGameType
             )
         ) {
@@ -351,8 +406,9 @@ void FreecamController::onLocalPlayerTick(
         }
 
         /*
-         * Sekarang packet movement normal
-         * boleh dikirim lagi.
+         * Restoration succeeded.
+         *
+         * PlayerAuthInput may now flow normally.
          */
         mSpectatorApplied.store(
             false,
@@ -370,14 +426,9 @@ void FreecamController::onLocalPlayerTick(
         );
 
         __android_log_print(
-
             ANDROID_LOG_INFO,
-
             kLogTag,
-
-            "Freecam OFF: restored "
-            "local GameType=%d",
-
+            "Freecam OFF: restored local GameType=%d",
             originalGameType
         );
     }
@@ -388,7 +439,7 @@ bool FreecamController::restoreNow()
     noexcept {
 
     /*
-     * Belum pernah masuk spectator.
+     * Nothing to restore.
      */
     if (!spectatorApplied()) {
         return true;
@@ -415,16 +466,13 @@ bool FreecamController::restoreNow()
 
     const std::int32_t
         originalGameType =
-
             mOriginalGameType.load(
                 std::memory_order_acquire
             );
 
     if (
         !gameMode.setLocalGameType(
-
             localPlayer,
-
             originalGameType
         )
     ) {
@@ -494,6 +542,11 @@ void FreecamController::clearSessionState()
         0,
         std::memory_order_release
     );
+
+    mWaitingForPacketHookLogged.store(
+        false,
+        std::memory_order_release
+    );
 }
 
 
@@ -501,9 +554,7 @@ void FreecamController::notePlayerAuthInput()
     noexcept {
 
     mPlayerAuthInputSeen.fetch_add(
-
         1,
-
         std::memory_order_relaxed
     );
 }
@@ -541,16 +592,17 @@ FreecamController::shouldSuppressPlayerAuthInput()
     const noexcept {
 
     /*
-     * Jangan bergantung pada state tombol.
+     * Depend on the actual spectator state,
+     * not merely the CAM button state.
      *
-     * Ketika CAM ditekan OFF ada periode
-     * singkat ketika:
+     * CAM OFF:
      *
      * requestedActive = false
-     * spectatorApplied = true
      *
-     * Pada periode itu PlayerAuthInput masih
-     * WAJIB diblokir sampai restore selesai.
+     * but spectatorApplied may still be true
+     * until restoration finishes.
+     *
+     * During that window packets must remain blocked.
      */
     return spectatorApplied();
 }
