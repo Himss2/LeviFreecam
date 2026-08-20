@@ -1,14 +1,23 @@
 #pragma once
 
+#include <cstdint>
 
-namespace levifreecam::camera
-{
+namespace levifreecam::camera {
 
+[[nodiscard]]
+bool installCameraHook()
+    noexcept;
 
-bool installCameraHook();
+void removeCameraHook()
+    noexcept;
 
+[[nodiscard]]
+bool cameraHookInstalled()
+    noexcept;
 
-void removeCameraHook();
+[[nodiscard]]
+std::uintptr_t
+cameraHookTargetAddress()
+    noexcept;
 
-
-}
+} // namespace levifreecam::camera
