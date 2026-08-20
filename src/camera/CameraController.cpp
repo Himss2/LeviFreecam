@@ -1,237 +1,125 @@
 #include "camera/CameraController.hpp"
 
-#include <pl/memory/Signature.hpp>
-
-#include <string_view>
-
+#include <cstddef>
+#include <cstring>
 
 namespace levifreecam::camera {
 
-
-namespace {
-
-
-constexpr std::string_view
-kMinecraftLibrary =
-"libminecraftpe.so";
-
-
-
-/*
-    CameraInstructionSystem
-
-    Dari libminecraftpe.so Minecraft kita.
-
-    Fungsi ini akan kita validasi
-    kembali setelah build pertama.
-
-*/
-
-constexpr std::string_view
-kCameraInstructionSignature =
-
-"? ? ? A9 "
-"? ? ? F9 "
-"? ? ? A9 "
-"? ? ? A9 "
-"FD 03 00 91 "
-"F4 03 00 AA "
-"F5 03 01 AA "
-"? ? ? ? "
-"? ? ? ? ";
-
-
-}
-
-
-
 CameraController&
 CameraController::instance()
-
-{
+    noexcept {
 
     static CameraController controller;
 
     return controller;
-
 }
 
 
+bool CameraController::readPosition(
+    const void* cameraComponent,
+    Vec3& out
+) const noexcept {
 
-bool CameraController::resolve()
+    if (
+        cameraComponent == nullptr
+    ) {
+        return false;
+    }
 
-{
-
-
-    const uintptr_t address =
-
-        pl::memory::resolveSignature(
-
-            kCameraInstructionSignature,
-
-            kMinecraftLibrary
-
+    const auto* base =
+        static_cast<
+            const std::byte*
+        >(
+            cameraComponent
         );
 
+    std::memcpy(
+        &out,
+        base + kPositionOffset,
+        sizeof(Vec3)
+    );
+
+    return true;
+}
 
 
-    if(address == 0)
+bool CameraController::writePosition(
+    void* cameraComponent,
+    const Vec3& position
+) const noexcept {
 
-    {
-
+    if (
+        cameraComponent == nullptr
+    ) {
         return false;
-
     }
 
-
-
-    mAddress = address;
-
-
-
-    mInstruction =
-
-        reinterpret_cast<CameraInstructionFn>(
-
-            address
-
+    auto* base =
+        static_cast<std::byte*>(
+            cameraComponent
         );
 
-
+    std::memcpy(
+        base + kPositionOffset,
+        &position,
+        sizeof(Vec3)
+    );
 
     return true;
-
 }
 
 
+bool CameraController::readOrientation(
+    const void* cameraComponent,
+    CameraOrientation& out
+) const noexcept {
 
-
-
-bool CameraController::enableFreeCamera()
-
-{
-
-
-    if(!mInstruction)
-
-    {
-
+    if (
+        cameraComponent == nullptr
+    ) {
         return false;
-
     }
 
+    const auto* base =
+        static_cast<
+            const std::byte*
+        >(
+            cameraComponent
+        );
 
-
-    /*
-        Untuk tahap pertama kita belum
-        mengirim CameraInstructionPacket.
-
-        Kita hanya memastikan jalur
-        CameraInstruction System
-        berhasil dipanggil.
-
-    */
-
-
-    mInstruction(
-
-        nullptr,
-
-        CameraPreset::Free
-
+    std::memcpy(
+        &out,
+        base + kOrientationOffset,
+        sizeof(CameraOrientation)
     );
-
-
-
-    mEnabled.store(
-
-        true,
-
-        std::memory_order_release
-
-    );
-
-
 
     return true;
-
 }
 
 
+bool CameraController::writeOrientation(
+    void* cameraComponent,
+    const CameraOrientation& orientation
+) const noexcept {
 
-
-
-bool CameraController::disableFreeCamera()
-
-{
-
-
-    if(!mInstruction)
-
-    {
-
+    if (
+        cameraComponent == nullptr
+    ) {
         return false;
-
     }
 
+    auto* base =
+        static_cast<std::byte*>(
+            cameraComponent
+        );
 
-
-    mInstruction(
-
-        nullptr,
-
-        CameraPreset::FirstPerson
-
+    std::memcpy(
+        base + kOrientationOffset,
+        &orientation,
+        sizeof(CameraOrientation)
     );
-
-
-
-    mEnabled.store(
-
-        false,
-
-        std::memory_order_release
-
-    );
-
-
 
     return true;
-
 }
 
-
-
-
-
-bool CameraController::enabled()
-
-const noexcept
-
-{
-
-    return mEnabled.load(
-
-        std::memory_order_acquire
-
-    );
-
-}
-
-
-
-
-
-uintptr_t CameraController::instructionAddress()
-
-const noexcept
-
-{
-
-    return mAddress;
-
-}
-
-
-
-}
+} // namespace levifreecam::camera
