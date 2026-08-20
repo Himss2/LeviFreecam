@@ -22,28 +22,58 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(preloader_android)
 
+
 if(ANDROID_ABI)
-    set(LEVI_FREECAM_OUTPUT_ABI "${ANDROID_ABI}")
+    set(
+        LEVI_FREECAM_OUTPUT_ABI
+        "${ANDROID_ABI}"
+    )
 else()
-    set(LEVI_FREECAM_OUTPUT_ABI "android")
+    set(
+        LEVI_FREECAM_OUTPUT_ABI
+        "android"
+    )
 endif()
+
 
 set(
     CMAKE_LIBRARY_OUTPUT_DIRECTORY
     "${CMAKE_BINARY_DIR}/out/${LEVI_FREECAM_OUTPUT_ABI}"
 )
 
+
 add_library(
     levi_freecam
     SHARED
 
+    # Main
     src/FreecamMod.cpp
+
+
+    # Core
     src/core/FreecamController.cpp
+
+
+    # Camera Native Freecam
+    src/camera/CameraController.cpp
+    src/camera/NativeCameraController.cpp
+    src/camera/CameraHook.cpp
+
+
+    # Legacy GameMode
+    # Tetap compile dulu untuk rollback aman
     src/game/GameModeController.cpp
+
+
+    # Hooks
     src/hooks/PacketHook.cpp
     src/hooks/PlayerHook.cpp
+
+
+    # UI
     src/ui/ModMenu.cpp
 )
+
 
 set_target_properties(
     levi_freecam
@@ -51,11 +81,13 @@ set_target_properties(
     OUTPUT_NAME "levi_freecam"
 )
 
+
 target_include_directories(
     levi_freecam
     PRIVATE
     "${CMAKE_CURRENT_LIST_DIR}/src"
 )
+
 
 target_link_libraries(
     levi_freecam
@@ -63,31 +95,42 @@ target_link_libraries(
     preloader
 )
 
+
 find_library(
     LEVI_FREECAM_LOG_LIB
     log
 )
 
+
 if(LEVI_FREECAM_LOG_LIB)
+
     target_link_libraries(
         levi_freecam
         PRIVATE
         "${LEVI_FREECAM_LOG_LIB}"
     )
+
 endif()
+
+
 
 find_library(
     LEVI_FREECAM_DL_LIB
     dl
 )
 
+
 if(LEVI_FREECAM_DL_LIB)
+
     target_link_libraries(
         levi_freecam
         PRIVATE
         "${LEVI_FREECAM_DL_LIB}"
     )
+
 endif()
+
+
 
 target_compile_options(
     levi_freecam
@@ -104,18 +147,26 @@ target_compile_options(
     -fdata-sections
 )
 
+
+
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
+
     target_compile_options(
         levi_freecam
         PRIVATE
+
         -Oz
     )
+
 endif()
+
+
 
 target_link_options(
     levi_freecam
     PRIVATE
 
     -Wl,--gc-sections
+
     -Wl,-z,max-page-size=16384
 )
