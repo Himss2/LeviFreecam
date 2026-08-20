@@ -7,66 +7,170 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 if(NOT ANDROID)
-    message(FATAL_ERROR "LeviFreecam is an Android native mod. Configure CMake with the Android NDK toolchain.")
+    message(FATAL_ERROR
+        "LeviFreecam hanya dapat dibuild untuk Android.")
 endif()
 
 include(FetchContent)
 
-# Keep the SDK pinned so builds stay reproducible.
+# ============================================================
+# Levi / Preloader Android SDK
+#
+# PENTING:
+# Jangan gunakan tag 0.2.2.
+#
+# Levi Launcher 1.5.x memakai Mod Menu API yang lebih baru.
+# ModuleInfo/ButtonInfo berubah setelah 0.2.2 sehingga binary
+# yang dibuild dengan header lama dapat mengalami ABI mismatch
+# ketika registerModule() dipanggil.
+# ============================================================
+
 FetchContent_Declare(
     preloader_android
-    GIT_REPOSITORY https://github.com/LiteLDev/preloader-android.git
-    GIT_TAG 0.2.2
-    GIT_SHALLOW TRUE
+
+    GIT_REPOSITORY
+        https://github.com/LiteLDev/preloader-android.git
+
+    GIT_TAG
+        main
+
+    GIT_SHALLOW
+        TRUE
 )
+
 FetchContent_MakeAvailable(preloader_android)
 
+# ============================================================
+# Output
+# ============================================================
+
 if(ANDROID_ABI)
-    set(LEVI_FREECAM_OUTPUT_ABI "${ANDROID_ABI}")
+    set(
+        LEVI_FREECAM_OUTPUT_ABI
+        "${ANDROID_ABI}"
+    )
 else()
-    set(LEVI_FREECAM_OUTPUT_ABI "android")
+    set(
+        LEVI_FREECAM_OUTPUT_ABI
+        "android"
+    )
 endif()
 
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY
-    "${CMAKE_BINARY_DIR}/out/${LEVI_FREECAM_OUTPUT_ABI}")
+set(
+    CMAKE_LIBRARY_OUTPUT_DIRECTORY
+    "${CMAKE_BINARY_DIR}/out/${LEVI_FREECAM_OUTPUT_ABI}"
+)
 
-add_library(levi_freecam SHARED
+# ============================================================
+# Levi Freecam
+# ============================================================
+
+add_library(
+    levi_freecam
+    SHARED
+
     src/FreecamMod.cpp
     src/core/FreecamController.cpp
     src/ui/ModMenu.cpp
 )
 
-set_target_properties(levi_freecam PROPERTIES
-    OUTPUT_NAME "levi_freecam"
+set_target_properties(
+    levi_freecam
+
+    PROPERTIES
+
+    OUTPUT_NAME
+        "levi_freecam"
 )
 
-target_include_directories(levi_freecam PRIVATE
+# ============================================================
+# Include
+# ============================================================
+
+target_include_directories(
+    levi_freecam
+
+    PRIVATE
+
     "${CMAKE_CURRENT_LIST_DIR}/src"
 )
 
-target_link_libraries(levi_freecam PRIVATE preloader)
+# ============================================================
+# Levi Preloader
+# ============================================================
 
-find_library(LEVI_FREECAM_LOG_LIB log)
+target_link_libraries(
+    levi_freecam
+
+    PRIVATE
+
+    preloader
+)
+
+# ============================================================
+# Android log
+# ============================================================
+
+find_library(
+    LEVI_FREECAM_LOG_LIB
+    log
+)
+
 if(LEVI_FREECAM_LOG_LIB)
-    target_link_libraries(levi_freecam PRIVATE "${LEVI_FREECAM_LOG_LIB}")
+
+    target_link_libraries(
+        levi_freecam
+
+        PRIVATE
+
+        "${LEVI_FREECAM_LOG_LIB}"
+    )
+
 endif()
 
-# Keep the first build small and compatible with Android devices using 16 KiB pages.
-target_compile_options(levi_freecam PRIVATE
+# ============================================================
+# Compiler
+# ============================================================
+
+target_compile_options(
+    levi_freecam
+
+    PRIVATE
+
     -Wall
     -Wextra
     -Wpedantic
+
     -fvisibility=hidden
     -fvisibility-inlines-hidden
+
     -ffunction-sections
     -fdata-sections
 )
 
 if(CMAKE_BUILD_TYPE STREQUAL "Release")
-    target_compile_options(levi_freecam PRIVATE -Oz)
+
+    target_compile_options(
+        levi_freecam
+
+        PRIVATE
+
+        -Oz
+    )
+
 endif()
 
-target_link_options(levi_freecam PRIVATE
+# ============================================================
+# Linker
+# ============================================================
+
+target_link_options(
+    levi_freecam
+
+    PRIVATE
+
     -Wl,--gc-sections
+
+    # Android 16 / 16 KiB page compatibility
     -Wl,-z,max-page-size=16384
 )
