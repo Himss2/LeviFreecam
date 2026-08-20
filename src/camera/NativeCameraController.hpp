@@ -1,43 +1,65 @@
 #pragma once
 
-#include <cstdint>
+#include "camera/CameraState.hpp"
 
-namespace levifreecam::camera
-{
+#include <atomic>
 
-class NativeCameraController
-{
+namespace levifreecam::camera {
+
+class NativeCameraController final {
+
 public:
 
-    static NativeCameraController& instance();
+    static NativeCameraController&
+    instance() noexcept;
 
+    bool enable() noexcept;
 
-    bool resolve();
+    bool disable() noexcept;
 
-    bool enable();
+    [[nodiscard]]
+    bool isEnabled()
+        const noexcept;
 
-    bool disable();
+    [[nodiscard]]
+    bool cameraCaptured()
+        const noexcept;
 
+    /*
+     * Dipanggil dari LocalPlayer::normalTick.
+     *
+     * Nanti menjadi integration point
+     * untuk movement.
+     */
+    void update() noexcept;
 
-    bool isEnabled() const;
+    /*
+     * Dipanggil CameraHook setelah
+     * Minecraft selesai menghitung
+     * transform kamera.
+     */
+    void onCameraTransform(
+        void* cameraComponent
+    ) noexcept;
 
+    void translate(
+        float x,
+        float y,
+        float z
+    ) noexcept;
 
-    void update();
-
+    void requestRecapture()
+        noexcept;
 
 private:
 
-    NativeCameraController() = default;
+    NativeCameraController() =
+        default;
 
-
-private:
-
-    bool mResolved = false;
-
-    bool mEnabled = false;
-
-    uintptr_t mCameraInstructionTick = 0;
+    std::atomic<void*>
+        mLastCameraComponent{
+            nullptr
+        };
 };
 
-
-}
+} // namespace levifreecam::camera
