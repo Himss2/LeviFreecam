@@ -1,96 +1,265 @@
 #include "ui/ModMenu.hpp"
 
-#include "core/FreecamController.hpp"
+#include <pl/ModMenu.hpp>
 
 #include <string_view>
 #include <utility>
 
-#include <pl/ModMenu.hpp>
-
 namespace levifreecam::ui {
+
 namespace {
 
-constexpr std::string_view kModuleId = "levi_freecam.freecam";
-constexpr std::string_view kButtonId = "levi_freecam.freecam_button";
+constexpr std::string_view kModuleId =
+    "levi_freecam.freecam";
+
+constexpr std::string_view kButtonId =
+    "levi_freecam.freecam.cam";
 
 } // namespace
 
-bool ModMenu::registerAll(std::string modId, ToggleCallback onToggle) {
+
+bool ModMenu::registerAll(
+    std::string modId,
+    ModuleToggleCallback onModuleToggle,
+    CameraToggleCallback onCameraToggle
+) {
+
     if (mRegistered) {
         return true;
     }
 
-    mModId = std::move(modId);
-    mOnToggle = std::move(onToggle);
+    mModId =
+        std::move(modId);
 
+    mOnModuleToggle =
+        std::move(onModuleToggle);
+
+    mOnCameraToggle =
+        std::move(onCameraToggle);
+
+    /*
+     * =====================================================
+     * FREECAM MODULE
+     * =====================================================
+     */
     const bool moduleRegistered =
-        pl::modmenu::ModuleBuilder(std::string(kModuleId), "Freecam")
-            .modId(mModId)
-            .description(
-                "Foundation build. The toggle is wired to Levi's native Mod Menu; "
-                "Minecraft camera/network hooks are added in later versions.")
-            .defaultEnabled(false)
-            .onToggle([this](std::string_view moduleId, bool enabled) {
-                if (moduleId != kModuleId) {
+
+        pl::modmenu::ModuleBuilder(
+            std::string(kModuleId),
+            "Freecam"
+        )
+
+        .modId(
+            mModId
+        )
+
+        .description(
+            "Free camera for Levi Launcher. "
+            "Enable this module to display the "
+            "CAM button."
+        )
+
+        .defaultEnabled(
+            false
+        )
+
+        .onToggle(
+            [this](
+                std::string_view moduleId,
+                bool enabled
+            ) {
+
+                if (
+                    moduleId !=
+                    kModuleId
+                ) {
                     return;
                 }
-                if (mOnToggle) {
-                    mOnToggle(enabled);
+
+                if (
+                    mOnModuleToggle
+                ) {
+                    mOnModuleToggle(
+                        enabled
+                    );
                 }
-            })
-            .registerModule();
+            }
+        )
+
+        .registerModule();
+
 
     if (!moduleRegistered) {
-        mOnToggle = {};
+
+        mOnModuleToggle = {};
+        mOnCameraToggle = {};
+
         mModId.clear();
+
         return false;
     }
 
-    // Click behavior is intentional in v0.1.0: the button delegates state to
-    // the module itself via setModuleEnabled(), giving us one source of truth.
+
+    /*
+     * =====================================================
+     * CAM BUTTON
+     * =====================================================
+     *
+     * We deliberately use Levi's Keycap preset.
+     *
+     * It gives us the same Minecraft-style:
+     *
+     * gray button
+     * dark outline
+     * square corners
+     * bold label
+     * lighter pressed/active state
+     *
+     * No custom ImGui.
+     * No custom Android View.
+     * No custom SVG required.
+     */
     const bool buttonRegistered =
-        pl::modmenu::ButtonBuilder(std::string(kButtonId), "Freecam")
-            .moduleId(std::string(kModuleId))
-            .modId(mModId)
-            .label("FC")
-            .behavior(pl::modmenu::ButtonBehavior::Click)
-            .stylePreset(pl::modmenu::ButtonStylePreset::Accent)
-            .sizeScale(1.0f, 1.0f)
-            .onEvent([](std::string_view buttonId,
-                        pl::modmenu::ButtonEvent event,
-                        float /*value*/) {
-                if (buttonId != kButtonId ||
-                    event != pl::modmenu::ButtonEvent::Click) {
+
+        pl::modmenu::ButtonBuilder(
+            std::string(kButtonId),
+            "Freecam Camera"
+        )
+
+        .moduleId(
+            std::string(kModuleId)
+        )
+
+        .modId(
+            mModId
+        )
+
+        /*
+         * Visible text.
+         */
+        .label(
+            "CAM"
+        )
+
+        /*
+         * Press once:
+         *
+         * CAM ON
+         *
+         * Press again:
+         *
+         * CAM OFF
+         */
+        .behavior(
+            pl::modmenu::
+                ButtonBehavior::Toggle
+        )
+
+        /*
+         * Native Levi / Minecraft-looking
+         * keycap style.
+         */
+        .stylePreset(
+            pl::modmenu::
+                ButtonStylePreset::Keycap
+        )
+
+        /*
+         * CAM is 3 letters.
+         *
+         * Levi itself uses approximately
+         * 1.8 width for labels <= 4 chars.
+         */
+        .sizeScale(
+            1.8f,
+            1.0f
+        )
+
+        .onEvent(
+            [this](
+                std::string_view buttonId,
+                pl::modmenu::ButtonEvent event,
+                float value
+            ) {
+
+                if (
+                    buttonId !=
+                    kButtonId
+                ) {
                     return;
                 }
 
-                auto &controller = FreecamController::instance();
-                pl::modmenu::setModuleEnabled(
-                    kModuleId, !controller.enabled());
-            })
-            .registerButton();
+                if (
+                    event !=
+                    pl::modmenu::
+                        ButtonEvent::StateChanged
+                ) {
+                    return;
+                }
+
+                const bool active =
+                    value > 0.5f;
+
+                if (
+                    mOnCameraToggle
+                ) {
+                    mOnCameraToggle(
+                        active
+                    );
+                }
+            }
+        )
+
+        .registerButton();
+
 
     if (!buttonRegistered) {
-        pl::modmenu::unregisterModule(kModuleId);
-        mOnToggle = {};
+
+        pl::modmenu::
+            unregisterModule(
+                kModuleId
+            );
+
+        mOnModuleToggle = {};
+        mOnCameraToggle = {};
+
         mModId.clear();
+
         return false;
     }
 
+
     mRegistered = true;
+
     return true;
 }
 
-void ModMenu::unregisterAll() noexcept {
+
+void ModMenu::unregisterAll()
+    noexcept {
+
     if (!mRegistered) {
         return;
     }
 
-    pl::modmenu::unregisterButton(kButtonId);
-    pl::modmenu::unregisterModule(kModuleId);
+    /*
+     * Always remove button first.
+     */
+    pl::modmenu::
+        unregisterButton(
+            kButtonId
+        );
+
+    pl::modmenu::
+        unregisterModule(
+            kModuleId
+        );
 
     mRegistered = false;
-    mOnToggle = {};
+
+    mOnModuleToggle = {};
+    mOnCameraToggle = {};
+
     mModId.clear();
 }
 
