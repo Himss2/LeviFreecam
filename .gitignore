@@ -1,0 +1,22 @@
+# CMake / build output
+build/
+build-*/
+dist/
+cmake-build-*/
+CMakeCache.txt
+CMakeFiles/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Native output
+*.so
+*.o
+*.a
+*.levipack
