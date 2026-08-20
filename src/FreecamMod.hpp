@@ -1,5 +1,6 @@
 #pragma once
 
+#include "hooks/PacketHook.hpp"
 #include "ui/ModMenu.hpp"
 
 #include <pl/Mod.hpp>
@@ -8,11 +9,12 @@ namespace levifreecam {
 
 class FreecamMod final {
 public:
-    static FreecamMod &instance();
+    static FreecamMod& instance();
 
     FreecamMod();
 
-    [[nodiscard]] ll::mod::NativeMod &getSelf() const noexcept;
+    [[nodiscard]]
+    ll::mod::NativeMod& getSelf() const noexcept;
 
     bool load();
     bool enable();
@@ -20,9 +22,12 @@ public:
     bool unload();
 
 private:
-    void setFeatureEnabled(bool enabled);
+    void setModuleEnabled(bool enabled);
+    void setCameraActive(bool active);
 
-    ll::mod::NativeMod &mSelf;
+    ll::mod::NativeMod& mSelf;
+
+    hooks::PacketHook mPacketHook;
     ui::ModMenu mModMenu;
 };
 
