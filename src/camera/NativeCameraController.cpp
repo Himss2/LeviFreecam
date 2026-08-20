@@ -4,27 +4,25 @@
 #include "CameraHook.hpp"
 
 #include <android/log.h>
-
 #include <cstdint>
 
 
-#define LOG_TAG "Levi Freecam"
+#define LOG_TAG "LeviFreecam"
 
 
 #define LOGI(...) \
-    __android_log_print( \
-        ANDROID_LOG_INFO, \
-        LOG_TAG, \
-        __VA_ARGS__ \
-    )
+__android_log_print(
+ANDROID_LOG_INFO,
+LOG_TAG,
+__VA_ARGS__)
 
 
 #define LOGE(...) \
-    __android_log_print( \
-        ANDROID_LOG_ERROR, \
-        LOG_TAG, \
-        __VA_ARGS__ \
-    )
+__android_log_print(
+ANDROID_LOG_ERROR,
+LOG_TAG,
+__VA_ARGS__)
+
 
 
 namespace levifreecam::camera
@@ -34,111 +32,72 @@ namespace levifreecam::camera
 namespace
 {
 
+
 CameraState gCameraState;
 
 
 /*
- * ==========================================================
- * Temporary resolved address
- *
- * Nanti diganti hasil RE:
- *
- * libminecraftpe.so
- * CameraInstructionSystem::_tick
- *
- * ==========================================================
+ * Nanti hasil RE
  */
-constexpr uintptr_t kCameraInstructionTickAddress = 0;
+constexpr uintptr_t kCameraAddress = 0;
+
+
+
+bool gResolved = false;
+
+bool gEnabled = false;
+
 
 
 }
 
 
-/*
- * ==========================================================
- * Camera State
- * ==========================================================
- */
 
-CameraState& getCameraState()
+
+CameraState& getCameraState() noexcept
 {
+
     return gCameraState;
+
 }
 
 
 
-/*
- * ==========================================================
- * Singleton
- * ==========================================================
- */
 
 NativeCameraController&
-NativeCameraController::instance()
+NativeCameraController::instance() noexcept
 {
 
-    static NativeCameraController controller;
+    static NativeCameraController instance;
 
-
-    return controller;
+    return instance;
 
 }
 
 
 
-/*
- * ==========================================================
- * Resolve Camera Function
- * ==========================================================
- */
 
-bool NativeCameraController::resolve()
+
+bool NativeCameraController::resolve() noexcept
 {
 
     LOGI(
-        "Camera resolve START"
+        "Camera resolve start"
     );
 
 
-    if(mResolved)
+    if(gResolved)
     {
-
-        LOGI(
-            "Camera already resolved"
-        );
-
-
         return true;
-
     }
 
 
 
-    /*
-     * Temporary:
-     *
-     * Address belum dimasukkan.
-     *
-     * Setelah RE final:
-     *
-     * mCameraInstructionTick =
-     *     base +
-     *     offset;
-     *
-     */
-
-
-    mCameraInstructionTick =
-        kCameraInstructionTickAddress;
-
-
-
-    if(mCameraInstructionTick == 0)
+    if(kCameraAddress == 0)
     {
 
         LOGE(
-            "CameraInstructionSystem::_tick "
-            "NOT RESOLVED"
+            "Camera address not found"
         );
 
 
@@ -148,17 +107,13 @@ bool NativeCameraController::resolve()
 
 
 
-    mResolved = true;
+    gResolved = true;
 
 
 
     LOGI(
-        "Camera resolved at %p",
-        reinterpret_cast<void*>(
-            mCameraInstructionTick
-        )
+        "Camera resolved"
     );
-
 
 
     return true;
@@ -167,31 +122,20 @@ bool NativeCameraController::resolve()
 
 
 
-/*
- * ==========================================================
- * Enable Camera
- * ==========================================================
- */
 
-bool NativeCameraController::enable()
+
+bool NativeCameraController::enable() noexcept
 {
 
     LOGI(
-        "NativeCameraController ENABLE ENTER"
+        "Camera enable"
     );
 
 
 
-    if(mEnabled)
+    if(gEnabled)
     {
-
-        LOGI(
-            "Native camera already enabled"
-        );
-
-
         return true;
-
     }
 
 
@@ -200,7 +144,7 @@ bool NativeCameraController::enable()
     {
 
         LOGE(
-            "Native camera resolve FAILED"
+            "Resolve failed"
         );
 
 
@@ -214,7 +158,7 @@ bool NativeCameraController::enable()
     {
 
         LOGE(
-            "Camera hook INSTALL FAILED"
+            "Hook failed"
         );
 
 
@@ -224,49 +168,16 @@ bool NativeCameraController::enable()
 
 
 
-    gCameraState.enabled =
-        true;
+    gCameraState.enabled = true;
 
 
-
-    mEnabled =
-        true;
+    gEnabled = true;
 
 
 
     LOGI(
-        "Native camera ENABLED"
+        "Camera enabled"
     );
-
-
-    return true;
-
-}
-
-
-
-/*
- * ==========================================================
- * Disable Camera
- * ==========================================================
- */
-
-bool NativeCameraController::disable()
-{
-
-    LOGI(
-        "NativeCameraController DISABLE"
-    );
-
-
-
-    gCameraState.enabled =
-        false;
-
-
-
-    mEnabled =
-        false;
 
 
 
@@ -276,32 +187,47 @@ bool NativeCameraController::disable()
 
 
 
-/*
- * ==========================================================
- * Status
- * ==========================================================
- */
 
-bool NativeCameraController::isEnabled()
-    const
+
+bool NativeCameraController::disable() noexcept
 {
 
-    return mEnabled;
+    LOGI(
+        "Camera disable"
+    );
+
+
+
+    gCameraState.enabled = false;
+
+
+    gEnabled = false;
+
+
+
+    return true;
 
 }
 
 
 
-/*
- * ==========================================================
- * Runtime Update
- * ==========================================================
- */
 
-void NativeCameraController::update()
+
+bool NativeCameraController::isEnabled() const noexcept
 {
 
-    if(!mEnabled)
+    return gEnabled;
+
+}
+
+
+
+
+
+void NativeCameraController::update() noexcept
+{
+
+    if(!gEnabled)
     {
         return;
     }
@@ -309,28 +235,13 @@ void NativeCameraController::update()
 
 
     /*
-     * Placeholder.
-     *
-     * Nanti diganti:
-     *
-     * camera position write
-     * camera rotation write
-     *
-     */
-
-
-
-    /*
-     * Debug movement test.
-     *
-     * Jangan dipakai final.
-     */
-
-    gCameraState.y += 0.01f;
-
+       Runtime update nanti
+       masuk sini
+    */
 
 
 }
+
 
 
 
