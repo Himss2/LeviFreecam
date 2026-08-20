@@ -25,7 +25,7 @@ jobs:
           sudo apt-get install -y ninja-build zip
 
       - name: Build arm64-v8a levipack
-        run: ./scripts/build.sh
+        run: bash ./scripts/build.sh
 
       - name: Inspect package
         run: |
