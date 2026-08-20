@@ -1,77 +1,55 @@
 #pragma once
 
-#include <atomic>
-#include <cstdint>
+#include "camera/CameraState.hpp"
+
+#include <cstddef>
 
 namespace levifreecam::camera {
-
-
-enum class CameraPreset : uint32_t {
-
-    FirstPerson = 0,
-
-    ThirdPerson = 1,
-
-    ThirdPersonFront = 2,
-
-    Free = 3
-};
-
 
 class CameraController final {
 
 public:
 
-    static CameraController& instance();
+    static CameraController&
+    instance() noexcept;
 
+    [[nodiscard]]
+    bool readPosition(
+        const void* cameraComponent,
+        Vec3& out
+    ) const noexcept;
 
-    bool resolve();
+    bool writePosition(
+        void* cameraComponent,
+        const Vec3& position
+    ) const noexcept;
 
+    [[nodiscard]]
+    bool readOrientation(
+        const void* cameraComponent,
+        CameraOrientation& out
+    ) const noexcept;
 
-    bool enableFreeCamera();
+    bool writeOrientation(
+        void* cameraComponent,
+        const CameraOrientation& orientation
+    ) const noexcept;
 
+    static constexpr std::size_t
+        kOrientationOffset =
+            0x28;
 
-    bool disableFreeCamera();
+    static constexpr std::size_t
+        kPositionOffset =
+            0x38;
 
-
-    bool enabled() const noexcept;
-
-
-    uintptr_t instructionAddress()
-        const noexcept;
-
-
+    static constexpr std::size_t
+        kCameraComponentStride =
+            0x118;
 
 private:
 
     CameraController() = default;
-
-
-
-    using CameraInstructionFn =
-        void(*)(
-
-            void* cameraSystem,
-
-            CameraPreset preset
-
-        );
-
-
-    CameraInstructionFn
-        mInstruction{nullptr};
-
-
-
-    uintptr_t
-        mAddress{0};
-
-
-
-    std::atomic_bool
-        mEnabled{false};
-
 };
 
-
-}
+} // namespace levifreecam::camera
