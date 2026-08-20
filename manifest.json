@@ -2,7 +2,7 @@
   "type": "preload-native",
   "name": "Levi Freecam",
   "author": "Himss",
-  "version": "0.4.0",
+  "version": "0.6.0",
   "entry": "liblevi_freecam.so",
   "minecraft_versions": []
 }
