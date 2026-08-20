@@ -1,91 +1,215 @@
-#include "CameraHook.hpp"
+#include "camera/CameraHook.hpp"
 
-#include "NativeCameraController.hpp"
+#include "camera/NativeCameraController.hpp"
+#include "memory/CameraResolver.hpp"
 
-#include <android/log.h>
+#include <pl/memory/Hook.hpp>
 
+#include <cstdint>
 
-#define LOG_TAG "LeviFreecam"
+namespace levifreecam::camera {
 
+namespace {
 
-#define LOGI(...) \
-__android_log_print(
-ANDROID_LOG_INFO,
-LOG_TAG,
-__VA_ARGS__
-)
-
-
-
-namespace levifreecam::camera
-{
-
-
-static bool installed = false;
-
-
-
-bool installCameraHook()
-{
-
-
-    if(installed)
-        return true;
-
-
-
-    /*
-        TEMP IMPLEMENTATION
-
-        menunggu address final:
-
-        CameraInstructionSystemUtil::_tick
-
-
-        nanti:
-
-        InlineHook(
-            address,
-            hkCameraTick,
-            &originalCameraTick
-        )
-
-    */
-
-
-    installed = true;
-
-
-    LOGI(
-    "Camera hook installed placeholder"
+/*
+ * RE prototype:
+ *
+ * x0 = CameraShakeSupport data
+ * x1 = active CameraComponent*
+ * x2 = runtime context
+ *
+ * Kita hanya menggunakan x1.
+ */
+using ActiveCameraTransformFn =
+    void (*)(
+        void* shakeSupport,
+        void* cameraComponent,
+        void* runtimeContext
     );
 
 
-    return true;
+ActiveCameraTransformFn
+    gOriginalActiveCameraTransform =
+        nullptr;
 
+
+void*
+    gHookTarget =
+        nullptr;
+
+
+std::uintptr_t
+    gTargetAddress =
+        0;
+
+
+bool
+    gInstalled =
+        false;
+
+
+void activeCameraTransformDetour(
+    void* shakeSupport,
+    void* cameraComponent,
+    void* runtimeContext
+) {
+
+    const auto original =
+        gOriginalActiveCameraTransform;
+
+    if (
+        original != nullptr
+    ) {
+
+        /*
+         * Jalankan kalkulasi kamera Minecraft dahulu.
+         */
+        original(
+            shakeSupport,
+            cameraComponent,
+            runtimeContext
+        );
+    }
+
+    /*
+     * Kemudian apply Native Freecam.
+     */
+    NativeCameraController::
+        instance().
+        onCameraTransform(
+            cameraComponent
+        );
 }
 
+} // namespace
 
+
+bool installCameraHook()
+    noexcept {
+
+    if (gInstalled) {
+        return true;
+    }
+
+    memory::CameraTargets
+        targets{};
+
+    if (
+        !memory::resolveCameraTargets(
+            targets
+        )
+    ) {
+        return false;
+    }
+
+    if (
+        targets.activeCameraTransform ==
+        0
+    ) {
+        return false;
+    }
+
+    void* original =
+        nullptr;
+
+    void* target =
+        reinterpret_cast<void*>(
+            targets.activeCameraTransform
+        );
+
+    void* detour =
+        reinterpret_cast<void*>(
+            &activeCameraTransformDetour
+        );
+
+    const int result =
+
+        pl::memory::hook(
+            target,
+            detour,
+            &original,
+
+            pl::memory::
+                HookPriority::Normal
+        );
+
+    if (
+        result != 0 ||
+        original == nullptr
+    ) {
+        return false;
+    }
+
+    gOriginalActiveCameraTransform =
+
+        reinterpret_cast<
+            ActiveCameraTransformFn
+        >(
+            original
+        );
+
+    gHookTarget =
+        target;
+
+    gTargetAddress =
+        targets.activeCameraTransform;
+
+    gInstalled =
+        true;
+
+    return true;
+}
 
 
 void removeCameraHook()
-{
+    noexcept {
 
-    if(!installed)
+    if (
+        !gInstalled
+    ) {
         return;
+    }
 
+    if (
+        gHookTarget != nullptr
+    ) {
 
+        pl::memory::unhook(
 
-    /*
-        restore hook
-    */
+            gHookTarget,
 
+            reinterpret_cast<void*>(
+                &activeCameraTransformDetour
+            )
+        );
+    }
 
-    installed = false;
+    gOriginalActiveCameraTransform =
+        nullptr;
 
+    gHookTarget =
+        nullptr;
 
+    gTargetAddress =
+        0;
+
+    gInstalled =
+        false;
 }
 
 
+bool cameraHookInstalled()
+    noexcept {
 
+    return gInstalled;
 }
+
+
+std::uintptr_t
+cameraHookTargetAddress()
+    noexcept {
+
+    return gTargetAddress;
+}
+
+} // namespace levifreecam::camera
