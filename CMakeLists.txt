@@ -58,6 +58,7 @@ add_library(
     # Camera Native Freecam
     src/camera/CameraController.cpp
     src/camera/NativeCameraController.cpp
+    src/camera/CameraState.cpp
     src/camera/CameraHook.cpp
     src/memory/CameraResolver.cpp
     src/camera/CameraSystemHook.cpp
