@@ -6,6 +6,7 @@
 
 #include <pl/Mod.hpp>
 
+
 namespace levifreecam {
 
 
@@ -50,47 +51,41 @@ bool FreecamMod::enable() {
     auto& self =
         getSelf();
 
+
     auto& gameMode =
         game::GameModeController::
             instance();
+
+
 
     /*
      * =====================================================
      * RESOLVE GAMETYPE FUNCTIONS
      * =====================================================
-     *
-     * These signatures were generated directly from
-     * the supplied libminecraftpe.so.
      */
     if (!gameMode.resolve()) {
 
         self.getLogger().error(
-            "Failed to resolve local GameType functions "
-            "for this Minecraft build."
+            "Failed to resolve local GameType functions."
         );
 
         return false;
     }
+
+
 
     self.getLogger().info(
         "GameType getter resolved at 0x{:x}",
         gameMode.getterAddress()
     );
 
+
     self.getLogger().info(
         "Local GameType setter resolved at 0x{:x}",
         gameMode.setterAddress()
     );
 
-    /*
-     * Expected for the supplied binary:
-     *
-     * getter:
-     *     0x0F0CB1B4
-     *
-     * setter:
-     *     0x0A649B7C
-     */
+
 
     /*
      * =====================================================
@@ -100,38 +95,36 @@ bool FreecamMod::enable() {
     if (!mPlayerHook.install()) {
 
         self.getLogger().error(
-            "Failed to install "
-            "LocalPlayer::normalTick hook."
+            "Failed to install LocalPlayer normalTick hook."
         );
+
 
         gameMode.clear();
 
         return false;
     }
 
+
+
     self.getLogger().info(
-        "LocalPlayer::normalTick hook installed "
-        "at 0x{:x}",
+        "LocalPlayer hook installed at 0x{:x}",
         mPlayerHook.targetAddress()
     );
 
-    /*
-     * Expected for supplied binary:
-     *
-     * 0x0A6417E4
-     */
+
 
     /*
      * =====================================================
-     * OUTGOING PACKET HOOK
+     * PACKET HOOK
      * =====================================================
      */
     if (!mPacketHook.install()) {
 
+
         self.getLogger().error(
-            "Failed to install "
-            "LoopbackPacketSender::sendToServer hook."
+            "Failed to install sendToServer hook."
         );
+
 
         mPlayerHook.uninstall();
 
@@ -140,17 +133,46 @@ bool FreecamMod::enable() {
         return false;
     }
 
+
+
     self.getLogger().info(
-        "sendToServer hook installed "
-        "at 0x{:x}",
+        "Packet hook installed at 0x{:x}",
         mPacketHook.targetAddress()
     );
 
+
+
     /*
-     * Expected for supplied binary:
-     *
-     * 0x0C2E2AA8
+     * =====================================================
+     * CAMERA SYSTEM HOOK
+     * =====================================================
      */
+    if (!camera::installCameraSystemHook()) {
+
+
+        self.getLogger().error(
+            "Camera system hook failed."
+        );
+
+
+        mPacketHook.uninstall();
+
+        mPlayerHook.uninstall();
+
+        gameMode.clear();
+
+
+        return false;
+    }
+
+
+
+    self.getLogger().info(
+        "Camera system hook installed at 0x{:x}",
+        camera::cameraSystemAddress()
+    );
+
+
 
     /*
      * =====================================================
@@ -162,29 +184,41 @@ bool FreecamMod::enable() {
 
             self.getId(),
 
+
             [this](
                 bool enabled
-            ) {
+            ){
+
                 setModuleEnabled(
                     enabled
                 );
+
             },
+
 
             [this](
                 bool active
-            ) {
+            ){
+
                 setCameraActive(
                     active
                 );
+
             }
+
         );
+
+
 
     if (!registered) {
 
+
         self.getLogger().error(
-            "Failed to register "
-            "Freecam module/CAM button."
+            "Failed to register Freecam module."
         );
+
+
+        camera::removeCameraSystemHook();
 
         mPacketHook.uninstall();
 
@@ -192,42 +226,46 @@ bool FreecamMod::enable() {
 
         gameMode.clear();
 
+
         return false;
     }
 
-    self.getLogger().info(
-        "Levi Freecam v0.4.0 ready."
-    );
+
 
     self.getLogger().info(
-        "CAM will activate only after "
-        "PlayerAuthInput detection is confirmed."
+        "Levi Freecam ready."
     );
+
 
     return true;
 }
 
-   if(!camera::installCameraSystemHook()){
-       self.getLogger().error(
-           "Camera system hook failed"
-       );
 
-       return false;
-}
 
 bool FreecamMod::disable() {
 
+
+    camera::removeCameraSystemHook();
+
+
     restoreAndReset();
+
 
     mModMenu.unregisterAll();
 
+
     mPacketHook.uninstall();
 
+
     mPlayerHook.uninstall();
+
+
 
     game::GameModeController::
         instance().
         clear();
+
+
 
     getSelf().
         getLogger().
@@ -235,23 +273,36 @@ bool FreecamMod::disable() {
             "Levi Freecam disabled"
         );
 
+
     return true;
 }
 
 
+
 bool FreecamMod::unload() {
+
+
+    camera::removeCameraSystemHook();
+
 
     restoreAndReset();
 
+
     mModMenu.unregisterAll();
+
 
     mPacketHook.uninstall();
 
+
     mPlayerHook.uninstall();
+
+
 
     game::GameModeController::
         instance().
         clear();
+
+
 
     getSelf().
         getLogger().
@@ -259,21 +310,28 @@ bool FreecamMod::unload() {
             "Levi Freecam unloaded"
         );
 
+
     return true;
 }
+
 
 
 void FreecamMod::setModuleEnabled(
     bool enabled
 ) {
 
+
     auto& controller =
         FreecamController::
             instance();
 
+
+
     controller.setModuleEnabled(
         enabled
     );
+
+
 
     getSelf().
         getLogger().
@@ -286,17 +344,23 @@ void FreecamMod::setModuleEnabled(
 }
 
 
+
 void FreecamMod::setCameraActive(
     bool active
 ) {
+
 
     auto& controller =
         FreecamController::
             instance();
 
+
+
     controller.setActive(
         active
     );
+
+
 
     getSelf().
         getLogger().
@@ -307,50 +371,48 @@ void FreecamMod::setCameraActive(
                 : "OFF"
         );
 
-    getSelf().
-        getLogger().
-        info(
-            "PlayerAuthInput seen = {}",
-            controller.playerAuthInputSeen()
-        );
 }
 
 
+
 void FreecamMod::restoreAndReset() {
+
 
     auto& controller =
         FreecamController::
             instance();
 
-    /*
-     * Request feature OFF.
-     */
+
+
     controller.setModuleEnabled(
         false
     );
 
-    /*
-     * Try to restore original local GameType
-     * while the GameType resolver and player
-     * object are still available.
-     */
+
+
     if (
         !controller.restoreNow() &&
         controller.spectatorApplied()
     ) {
 
+
         getSelf().
             getLogger().
             warn(
-                "Could not restore local GameType "
-                "during mod shutdown."
+                "Could not restore GameType."
             );
+
     }
 
+
+
     controller.forceDisable();
+
 }
 
+
 } // namespace levifreecam
+
 
 
 PL_REGISTER_MOD(
