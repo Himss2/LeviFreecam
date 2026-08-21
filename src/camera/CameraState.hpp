@@ -29,7 +29,10 @@ struct CameraOrientation final {
 
 
 
+
+
 struct CameraState final {
+
 
 
     /*
@@ -41,6 +44,7 @@ struct CameraState final {
         };
 
 
+
     /*
      * Request capture ulang.
      */
@@ -48,6 +52,7 @@ struct CameraState final {
         captureRequested{
             false
         };
+
 
 
     /*
@@ -60,12 +65,16 @@ struct CameraState final {
 
 
 
+
+
     /*
      * Posisi virtual camera.
      *
      * Posisi yang dikontrol oleh Freecam.
      */
     Vec3 position{};
+
+
 
 
 
@@ -76,6 +85,8 @@ struct CameraState final {
      * ketika Freecam dimatikan.
      */
     Vec3 originalPosition{};
+
+
 
 
 
@@ -92,11 +103,15 @@ struct CameraState final {
 
 
 
+
+
     /*
      * Rotasi virtual camera.
      */
     CameraOrientation
         orientation{};
+
+
 
 
 
@@ -106,9 +121,48 @@ struct CameraState final {
      * Digunakan untuk restore
      * ketika Freecam dimatikan.
      */
-    CameraOrientation originalOrientation{};
+    CameraOrientation
+        originalOrientation{};
+
+
+
+
+
+    /*
+     * Freecam rotation state.
+     *
+     * yaw:
+     * rotasi horizontal kiri-kanan
+     *
+     * pitch:
+     * rotasi vertikal atas-bawah
+     */
+    float yaw{
+        0.0f
+    };
+
+
+    float pitch{
+        0.0f
+    };
+
+
+
+    /*
+     * Sensitivitas kamera.
+     *
+     * Nanti bisa disesuaikan
+     * dengan touch input Levi.
+     */
+    float sensitivity{
+        0.15f
+    };
+
+
 
 };
+
+
 
 
 
