@@ -1,25 +1,47 @@
 #include "camera/CameraHook.hpp"
 
+
 #include "camera/NativeCameraController.hpp"
 #include "memory/CameraResolver.hpp"
 
+
 #include <pl/memory/Hook.hpp>
+
+
+#include <android/log.h>
+
 
 #include <cstdint>
 
+
+
 namespace levifreecam::camera {
+
 
 namespace {
 
+
+constexpr char kLogTag[] =
+    "Levi Freecam";
+
+
+
 /*
- * RE prototype:
+ * Reverse Engineering prototype
  *
- * x0 = CameraShakeSupport data
- * x1 = active CameraComponent*
- * x2 = runtime context
+ * x0 :
+ *      CameraShakeSupport*
  *
- * Kita hanya menggunakan x1.
+ * x1 :
+ *      CameraComponent*
+ *
+ * x2 :
+ *      RuntimeContext*
+ *
+ *
+ * Kita hanya membutuhkan x1
  */
+
 using ActiveCameraTransformFn =
     void (*)(
         void* shakeSupport,
@@ -28,188 +50,591 @@ using ActiveCameraTransformFn =
     );
 
 
+
+
 ActiveCameraTransformFn
-    gOriginalActiveCameraTransform =
-        nullptr;
+gOriginalActiveCameraTransform =
+    nullptr;
+
+
 
 
 void*
-    gHookTarget =
-        nullptr;
+gHookTarget =
+    nullptr;
+
+
 
 
 std::uintptr_t
-    gTargetAddress =
-        0;
+gTargetAddress =
+    0;
+
+
 
 
 bool
-    gInstalled =
-        false;
+gInstalled =
+    false;
+
+
+
+
+std::uint64_t
+gCallCounter =
+    0;
+
+
+
 
 
 void activeCameraTransformDetour(
+
     void* shakeSupport,
+
     void* cameraComponent,
+
     void* runtimeContext
-) {
 
-    const auto original =
-        gOriginalActiveCameraTransform;
+)
+{
 
-    if (
-        original != nullptr
-    ) {
-
-        /*
-         * Jalankan kalkulasi kamera Minecraft dahulu.
-         */
-        original(
-            shakeSupport,
-            cameraComponent,
-            runtimeContext
-        );
-    }
 
     /*
-     * Kemudian apply Native Freecam.
+     * Minecraft camera update asli
+     *
+     * WAJIB dipanggil dulu
+     *
+     * agar matrix kamera,
+     * rotation,
+     * bobbing,
+     * shaking,
+     * dan interpolasi tetap normal
      */
-    NativeCameraController::
-        instance().
-        onCameraTransform(
-            cameraComponent
+
+    if(
+        gOriginalActiveCameraTransform
+        != nullptr
+    )
+    {
+
+
+        gOriginalActiveCameraTransform(
+
+            shakeSupport,
+
+            cameraComponent,
+
+            runtimeContext
+
         );
+
+
+    }
+
+
+
+
+
+    /*
+     * Jangan proses object kosong
+     */
+
+    if(
+        cameraComponent == nullptr
+    )
+    {
+
+        return;
+
+    }
+
+
+
+
+
+    /*
+     * Debug tracking
+     */
+
+    gCallCounter++;
+
+
+
+    if(
+        (gCallCounter % 300)
+        == 0
+    )
+    {
+
+        __android_log_print(
+
+            ANDROID_LOG_INFO,
+
+            kLogTag,
+
+            "Camera transform active (%llu)",
+
+            gCallCounter
+
+        );
+
+    }
+
+
+
+
+
+    /*
+     * Native Freecam takeover
+     *
+     * Setelah kamera asli selesai,
+     * kita overwrite transform
+     */
+
+    NativeCameraController::
+
+        instance()
+
+        .onCameraTransform(
+
+            cameraComponent
+
+        );
+
+
 }
 
-} // namespace
+
+
+}
+
+
+
 
 
 bool installCameraHook()
-    noexcept {
 
-    if (gInstalled) {
+noexcept
+
+{
+
+
+    if(
+        gInstalled
+    )
+    {
+
         return true;
+
     }
+
+
+
+
 
     memory::CameraTargets
-        targets{};
 
-    if (
+    targets{};
+
+
+
+
+
+    if(
+
         !memory::resolveCameraTargets(
+
             targets
+
         )
-    ) {
+
+    )
+    {
+
+
+        __android_log_print(
+
+            ANDROID_LOG_ERROR,
+
+            kLogTag,
+
+            "Failed resolving camera targets"
+
+        );
+
+
         return false;
+
+
     }
 
-    if (
-        targets.activeCameraTransform ==
+
+
+
+
+
+
+    if(
+
+        targets.activeCameraTransform
+
+        ==
+
         0
-    ) {
+
+    )
+    {
+
+
+        __android_log_print(
+
+            ANDROID_LOG_ERROR,
+
+            kLogTag,
+
+            "Camera transform address invalid"
+
+        );
+
+
         return false;
+
+
     }
 
-    void* original =
+
+
+
+
+
+    void*
+
+    target =
+
+        reinterpret_cast<void*>(
+
+            targets.activeCameraTransform
+
+        );
+
+
+
+
+
+
+    void*
+
+    detour =
+
+        reinterpret_cast<void*>(
+
+            &activeCameraTransformDetour
+
+        );
+
+
+
+
+
+
+    void*
+
+    original =
+
         nullptr;
 
-    void* target =
-        reinterpret_cast<void*>(
-            targets.activeCameraTransform
-        );
 
-    void* detour =
-        reinterpret_cast<void*>(
-            &activeCameraTransformDetour
-        );
+
+
+
+
 
     const int result =
 
+
+
         pl::memory::hook(
+
             target,
+
             detour,
+
             &original,
 
+
+
             pl::memory::
+
                 HookPriority::Normal
+
         );
 
-    if (
-        result != 0 ||
+
+
+
+
+
+
+    if(
+
+        result != 0
+
+        ||
+
         original == nullptr
-    ) {
+
+    )
+
+    {
+
+
+        __android_log_print(
+
+            ANDROID_LOG_ERROR,
+
+            kLogTag,
+
+            "Camera hook failed (%d)",
+
+            result
+
+        );
+
+
+
         return false;
+
+
     }
+
+
+
+
+
 
     gOriginalActiveCameraTransform =
 
+
+
         reinterpret_cast<
+
             ActiveCameraTransformFn
+
         >(
+
             original
+
         );
 
+
+
+
+
+
     gHookTarget =
+
         target;
 
+
+
+
+
     gTargetAddress =
+
         targets.activeCameraTransform;
 
+
+
+
+
+
     gInstalled =
+
         true;
 
+
+
+
+
+
+    __android_log_print(
+
+        ANDROID_LOG_INFO,
+
+        kLogTag,
+
+        "Camera hook installed : %p",
+
+        target
+
+    );
+
+
+
+
+
     return true;
+
+
 }
+
+
+
+
+
+
 
 
 void removeCameraHook()
-    noexcept {
 
-    if (
+noexcept
+
+{
+
+
+    if(
+
         !gInstalled
-    ) {
+
+    )
+    {
+
         return;
+
     }
 
-    if (
+
+
+
+
+
+
+    if(
+
         gHookTarget != nullptr
-    ) {
+
+    )
+
+    {
+
 
         pl::memory::unhook(
 
+
             gHookTarget,
 
+
             reinterpret_cast<void*>(
+
                 &activeCameraTransformDetour
+
             )
+
         );
+
+
     }
 
+
+
+
+
+
+
     gOriginalActiveCameraTransform =
+
         nullptr;
+
+
+
+
+
 
     gHookTarget =
+
         nullptr;
 
+
+
+
+
+
     gTargetAddress =
+
         0;
 
+
+
+
+
+
+    gCallCounter =
+
+        0;
+
+
+
+
+
+
     gInstalled =
+
         false;
+
+
+
+
+
+
+    __android_log_print(
+
+        ANDROID_LOG_INFO,
+
+        kLogTag,
+
+        "Camera hook removed"
+
+    );
+
+
 }
+
+
+
+
+
+
 
 
 bool cameraHookInstalled()
-    noexcept {
+
+noexcept
+
+{
 
     return gInstalled;
+
 }
 
 
-std::uintptr_t
-cameraHookTargetAddress()
-    noexcept {
+
+
+
+
+
+
+std::uintptr_t cameraHookTargetAddress()
+
+noexcept
+
+{
 
     return gTargetAddress;
+
 }
 
-} // namespace levifreecam::camera
+
+
+
+}
