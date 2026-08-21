@@ -17,13 +17,17 @@ constexpr char kLogTag[] =
 }
 
 
+
 NativeCameraController&
 NativeCameraController::instance()
 noexcept
 {
     static NativeCameraController controller;
+
     return controller;
 }
+
+
 
 
 
@@ -31,7 +35,8 @@ bool NativeCameraController::enable()
 noexcept
 {
 
-    auto& state = getCameraState();
+    auto& state =
+        getCameraState();
 
 
     if(state.enabled.load())
@@ -40,12 +45,27 @@ noexcept
     }
 
 
-    state.captureRequested.store(true);
 
-    state.captured.store(false);
+    state.captureRequested.store(
+        true
+    );
 
 
-    state.enabled.store(true);
+    state.captured.store(
+        false
+    );
+
+
+
+    state.velocity.x = 0.0f;
+    state.velocity.y = 0.0f;
+    state.velocity.z = 0.0f;
+
+
+
+    state.enabled.store(
+        true
+    );
 
 
 
@@ -57,7 +77,11 @@ noexcept
 
 
     return true;
+
 }
+
+
+
 
 
 
@@ -66,11 +90,14 @@ bool NativeCameraController::disable()
 noexcept
 {
 
-    auto& state = getCameraState();
+    auto& state =
+        getCameraState();
+
 
 
     void* camera =
         mLastCameraComponent.load();
+
 
 
 
@@ -86,6 +113,7 @@ noexcept
         );
 
 
+
         __android_log_print(
             ANDROID_LOG_INFO,
             kLogTag,
@@ -96,21 +124,42 @@ noexcept
 
 
 
-    mLastCameraComponent.store(nullptr);
+
+
+    mLastCameraComponent.store(
+        nullptr
+    );
 
 
 
-    state.enabled.store(false);
+    state.enabled.store(
+        false
+    );
 
-    state.captured.store(false);
 
-    state.captureRequested.store(false);
+    state.captured.store(
+        false
+    );
+
+
+    state.captureRequested.store(
+        false
+    );
+
+
+
+    state.velocity.x = 0.0f;
+    state.velocity.y = 0.0f;
+    state.velocity.z = 0.0f;
 
 
 
     return true;
 
 }
+
+
+
 
 
 
@@ -127,6 +176,10 @@ const noexcept
 
 
 
+
+
+
+
 bool NativeCameraController::cameraCaptured()
 const noexcept
 {
@@ -138,13 +191,24 @@ const noexcept
 
 
 
+
+
+
+
 void NativeCameraController::requestRecapture()
 noexcept
 {
+
     getCameraState()
         .captureRequested
-        .store(true);
+        .store(
+            true
+        );
+
 }
+
+
+
 
 
 
@@ -169,10 +233,13 @@ noexcept
 
 
 
+
     if(!state.enabled.load())
     {
         return;
     }
+
+
 
 
 
@@ -183,9 +250,12 @@ noexcept
 
 
 
+
+
     /*
-        Capture awal
+        Capture kamera awal
     */
+
 
     if(state.captureRequested.load())
     {
@@ -194,6 +264,7 @@ noexcept
         Vec3 pos{};
 
         CameraOrientation rot{};
+
 
 
 
@@ -207,6 +278,7 @@ noexcept
 
 
 
+
         bool rotOK =
             CameraController::
             instance()
@@ -214,6 +286,8 @@ noexcept
                 cameraComponent,
                 rot
             );
+
+
 
 
 
@@ -233,6 +307,8 @@ noexcept
 
 
 
+
+
         if(rotOK)
         {
 
@@ -247,9 +323,18 @@ noexcept
 
 
 
-        state.captureRequested.store(false);
 
-        state.captured.store(true);
+
+
+        state.captureRequested.store(
+            false
+        );
+
+
+        state.captured.store(
+            true
+        );
+
 
 
 
@@ -259,15 +344,20 @@ noexcept
             "Camera captured"
         );
 
+
     }
 
 
 
 
 
+
+
+
     /*
-        Override kamera asli
+        Override camera Minecraft
     */
+
 
     if(state.captured.load())
     {
@@ -286,7 +376,12 @@ noexcept
 
 
 
+
+
 }
+
+
+
 
 
 
@@ -316,30 +411,30 @@ noexcept
 
 
 
-    /*
-        movement sementara
 
-        nanti diganti:
-        touch
-        joystick
-        keyboard
+
+    /*
+        TEST MOVEMENT
+
+        Jika berhasil:
+        berarti camera hook
+        dan write transform
+        sudah bekerja.
+
+        Nanti diganti
+        dengan input player.
     */
 
 
-    state.position.x +=
-        state.velocity.x;
-
-
-    state.position.y +=
-        state.velocity.y;
-
-
     state.position.z +=
-        state.velocity.z;
+        0.05f;
 
 
 
 }
+
+
+
 
 
 
@@ -359,6 +454,7 @@ noexcept
 
 
 
+
     if(!state.enabled.load())
     {
         return;
@@ -366,15 +462,23 @@ noexcept
 
 
 
-    state.velocity.x = x;
 
-    state.velocity.y = y;
 
-    state.velocity.z = z;
+    state.velocity.x =
+        x;
+
+
+    state.velocity.y =
+        y;
+
+
+    state.velocity.z =
+        z;
 
 
 
 }
+
 
 
 
