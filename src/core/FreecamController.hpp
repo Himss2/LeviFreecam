@@ -37,7 +37,6 @@ public:
     noexcept;
 
 
-
     void forceDisable()
     noexcept;
 
@@ -53,15 +52,8 @@ public:
     const noexcept;
 
 
-
     [[nodiscard]]
     bool active()
-    const noexcept;
-
-
-
-    [[nodiscard]]
-    bool spectatorApplied()
     const noexcept;
 
 
@@ -80,9 +72,7 @@ public:
 
 private:
 
-
     FreecamController() = default;
-
 
 
     void clearSessionState()
@@ -93,19 +83,12 @@ private:
 private:
 
 
-    /*
-     * Module state
-     */
     std::atomic_bool
         mModuleEnabled{
             false
         };
 
 
-
-    /*
-     * CAM button
-     */
     std::atomic_bool
         mRequestedActive{
             false
@@ -113,35 +96,6 @@ private:
 
 
 
-    /*
-     * Spectator berhasil diterapkan
-     */
-    std::atomic_bool
-        mSpectatorApplied{
-            false
-        };
-
-
-
-    /*
-     * Backup gamemode awal
-     */
-    std::atomic_bool
-        mOriginalGameTypeValid{
-            false
-        };
-
-
-    std::atomic_int
-        mOriginalGameType{
-            0
-        };
-
-
-
-    /*
-     * LocalPlayer pointer
-     */
     std::atomic<void*>
         mCurrentPlayer{
             nullptr
@@ -149,23 +103,11 @@ private:
 
 
 
-    /*
-     * refresh spectator
-     */
-    std::atomic_uint32_t
-        mSpectatorRefreshTicks{
-            0
-        };
-
-
-
-    /*
-     * Packet counter
-     */
     std::atomic_uint64_t
         mPlayerAuthInputSeen{
             0
         };
+
 
 };
 
