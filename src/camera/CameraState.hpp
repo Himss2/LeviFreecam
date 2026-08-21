@@ -62,8 +62,20 @@ struct CameraState final {
 
     /*
      * Posisi virtual camera.
+     *
+     * Posisi yang dikontrol oleh Freecam.
      */
     Vec3 position{};
+
+
+
+    /*
+     * Backup posisi kamera asli Minecraft.
+     *
+     * Digunakan untuk restore
+     * ketika Freecam dimatikan.
+     */
+    Vec3 originalPosition{};
 
 
 
@@ -81,10 +93,20 @@ struct CameraState final {
 
 
     /*
-     * Rotasi kamera.
+     * Rotasi virtual camera.
      */
     CameraOrientation
         orientation{};
+
+
+
+    /*
+     * Backup rotasi kamera asli Minecraft.
+     *
+     * Digunakan untuk restore
+     * ketika Freecam dimatikan.
+     */
+    CameraOrientation originalOrientation{};
 
 };
 
