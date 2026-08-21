@@ -8,10 +8,8 @@ namespace levifreecam {
 
 namespace {
 
-
 constexpr char kLogTag[] =
     "LeviFreecam";
-
 
 }
 
@@ -38,9 +36,7 @@ void PlayerFreezeController::enable(
 noexcept
 {
 
-    if(
-        player == nullptr
-    )
+    if(player == nullptr)
     {
         return;
     }
@@ -48,7 +44,20 @@ noexcept
 
 
     /*
-     * Simpan pointer player
+     * Jangan enable berulang.
+     *
+     * Sebelumnya fungsi ini dipanggil
+     * setiap tick sehingga log spam.
+     */
+    if(mEnabled.load())
+    {
+        return;
+    }
+
+
+
+    /*
+     * Simpan LocalPlayer
      */
     mPlayer.store(
         player
@@ -57,16 +66,13 @@ noexcept
 
 
     /*
-     * Temporary
-
-     * Nanti diganti:
+     * Backup posisi sementara.
+     *
+     * Nanti diganti dengan:
      *
      * Actor::getPosition()
      * Actor::getRotation()
-     *
      */
-
-
     mPosition[0] = 0.0f;
     mPosition[1] = 0.0f;
     mPosition[2] = 0.0f;
@@ -91,6 +97,7 @@ noexcept
 
 
 
+
 void PlayerFreezeController::tick(
     void* player
 )
@@ -106,9 +113,7 @@ noexcept
 
 
 
-    if(
-        player == nullptr
-    )
+    if(player == nullptr)
     {
         return;
     }
@@ -117,21 +122,18 @@ noexcept
 
     /*
      * TEMPORARY
-
-     * Belum melakukan memory write.
-
-     * Setelah Actor offset ditemukan:
      *
-     * setPosition()
-     * setVelocity()
+     * Belum melakukan memory write.
+     *
+     * Nanti masuk:
+     *
+     * Actor::setPosition()
+     * Actor::setVelocity()
      * resetFallDistance()
      *
-     * akan masuk di sini.
      */
 
-
 }
-
 
 
 
@@ -141,6 +143,16 @@ noexcept
 void PlayerFreezeController::disable()
 noexcept
 {
+
+    /*
+     * Jangan disable ulang
+     */
+    if(!mEnabled.load())
+    {
+        return;
+    }
+
+
 
     mEnabled.store(
         false
@@ -167,7 +179,6 @@ noexcept
 
 
 
-
 bool PlayerFreezeController::enabled()
 const noexcept
 {
@@ -175,6 +186,7 @@ const noexcept
     return mEnabled.load();
 
 }
+
 
 
 }
