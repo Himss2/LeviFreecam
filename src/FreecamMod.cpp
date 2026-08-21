@@ -2,6 +2,7 @@
 
 #include "core/FreecamController.hpp"
 #include "game/GameModeController.hpp"
+#include "camera/CameraSystemHook.hpp"
 
 #include <pl/Mod.hpp>
 
@@ -206,6 +207,13 @@ bool FreecamMod::enable() {
     return true;
 }
 
+   if(!camera::installCameraSystemHook()){
+       self.getLogger().error(
+           "Camera system hook failed"
+       );
+
+       return false;
+}
 
 bool FreecamMod::disable() {
 
