@@ -1,10 +1,13 @@
 #include "camera/NativeCameraController.hpp"
 
+
 #include "camera/CameraHook.hpp"
 #include "camera/CameraController.hpp"
 
 
+
 #include <android/log.h>
+
 
 
 #define LOG_TAG "LeviFreecam"
@@ -40,17 +43,16 @@ CameraState gCameraState;
 
 
 
-bool gEnabled =
-    false;
+bool gEnabled=false;
 
 
-
-bool gInitialCaptured =
-    false;
+bool gInitialCaptured=false;
 
 
 
 }
+
+
 
 
 
@@ -60,6 +62,7 @@ noexcept
 {
     return gCameraState;
 }
+
 
 
 
@@ -78,19 +81,20 @@ noexcept
 
 
 
+
 bool NativeCameraController::enable()
 noexcept
 {
+
 
     LOGI(
         "Native camera enable requested"
     );
 
 
+
     if(gEnabled)
-    {
         return true;
-    }
 
 
 
@@ -100,29 +104,26 @@ noexcept
     {
 
         LOGE(
-            "Camera hook installation failed"
+            "Camera hook failed"
         );
 
 
         return false;
+
     }
 
 
 
     gCameraState.enabled.store(
-        true,
-        std::memory_order_release
+        true
     );
 
 
 
-    gEnabled =
-        true;
+    gEnabled=true;
 
 
-
-    gInitialCaptured =
-        false;
+    gInitialCaptured=false;
 
 
 
@@ -145,16 +146,10 @@ bool NativeCameraController::disable()
 noexcept
 {
 
+
     LOGI(
         "Native camera disable"
     );
-
-
-
-    if(!gEnabled)
-    {
-        return true;
-    }
 
 
 
@@ -163,52 +158,33 @@ noexcept
 
 
     gCameraState.enabled.store(
-        false,
-        std::memory_order_release
+        false
     );
-
-
-
-    gCameraState.captureRequested.store(
-        false,
-        std::memory_order_release
-    );
-
 
 
     gCameraState.captured.store(
-        false,
-        std::memory_order_release
+        false
     );
 
 
 
     mLastCameraComponent.store(
-        nullptr,
-        std::memory_order_release
+        nullptr
     );
 
 
 
-    gCameraState.position = {};
-
-    gCameraState.velocity = {};
+    gInitialCaptured=false;
 
 
-
-    gInitialCaptured =
-        false;
-
-
-
-    gEnabled =
-        false;
+    gEnabled=false;
 
 
 
     return true;
 
 }
+
 
 
 
@@ -224,16 +200,16 @@ const noexcept
 
 
 
+
 bool NativeCameraController::cameraCaptured()
 const noexcept
 {
 
     return
-        gCameraState.captured.load(
-            std::memory_order_acquire
-        );
+        gCameraState.captured.load();
 
 }
+
 
 
 
@@ -243,44 +219,13 @@ void NativeCameraController::update()
 noexcept
 {
 
+
     if(!gEnabled)
-    {
         return;
-    }
-
-
-    /*
-     *
-     * Movement masuk di sini.
-     *
-     * Saat ini hanya update state.
-     *
-     */
-
-
-
-    auto& state =
-        getCameraState();
-
-
-
-    state.position.x +=
-        state.velocity.x;
-
-
-
-    state.position.y +=
-        state.velocity.y;
-
-
-
-    state.position.z +=
-        state.velocity.z;
 
 
 
 }
-
 
 
 
@@ -296,7 +241,7 @@ noexcept
 
     if(
         !gEnabled ||
-        cameraComponent == nullptr
+        cameraComponent==nullptr
     )
     {
         return;
@@ -304,12 +249,8 @@ noexcept
 
 
 
-    /*
-     * Simpan camera component asli.
-     */
     mLastCameraComponent.store(
-        cameraComponent,
-        std::memory_order_release
+        cameraComponent
     );
 
 
@@ -321,17 +262,7 @@ noexcept
 
 
 
-    /*
-     * Capture posisi kamera asli.
-     *
-     * Jangan overwrite transform.
-     *
-     * Karena CameraComponent masih
-     * terhubung dengan LocalPlayer.
-     */
-    if(
-        !gInitialCaptured
-    )
+    if(!gInitialCaptured)
     {
 
 
@@ -356,14 +287,12 @@ noexcept
 
 
             state.captured.store(
-                true,
-                std::memory_order_release
+                true
             );
 
 
+            gInitialCaptured=true;
 
-            gInitialCaptured =
-                true;
 
         }
 
@@ -372,8 +301,49 @@ noexcept
 
 
 
-}
 
+    /*
+        TEST FREECAM OFFSET
+
+        X 0
+        Y naik 2 blok
+        Z mundur 4 blok
+    */
+
+
+    Vec3 offset{};
+
+
+    offset.x=0.0f;
+
+    offset.y=2.0f;
+
+    offset.z=-4.0f;
+
+
+
+    if(
+        CameraController::
+        instance()
+        .applyOffset(
+            cameraComponent,
+            offset
+        )
+    )
+    {
+
+
+        LOGI(
+            "Virtual camera applied"
+        );
+
+
+    }
+
+
+
+
+}
 
 
 
@@ -388,21 +358,21 @@ void NativeCameraController::translate(
 noexcept
 {
 
+
     auto& state =
         getCameraState();
 
 
 
-    state.position.x += x;
+    state.velocity.x=x;
 
-    state.position.y += y;
+    state.velocity.y=y;
 
-    state.position.z += z;
+    state.velocity.z=z;
 
 
 
 }
-
 
 
 
@@ -413,17 +383,11 @@ void NativeCameraController::requestRecapture()
 noexcept
 {
 
-    gCameraState.captureRequested.store(
-        true,
-        std::memory_order_release
-    );
-
-
-
-    gInitialCaptured =
-        false;
+    gInitialCaptured=false;
 
 }
+
+
 
 
 
