@@ -2,13 +2,17 @@
 
 #include "camera/CameraController.hpp"
 
+
 #include <android/log.h>
+
 
 
 namespace levifreecam::camera {
 
 
+
 namespace {
+
 
 constexpr char kLogTag[] =
     "Levi Freecam";
@@ -18,14 +22,22 @@ constexpr char kLogTag[] =
 
 
 
+
+
 NativeCameraController&
 NativeCameraController::instance()
 noexcept
 {
+
     static NativeCameraController controller;
 
     return controller;
+
 }
+
+
+
+
 
 
 
@@ -39,16 +51,23 @@ noexcept
         getCameraState();
 
 
-    if(state.enabled.load())
+
+    if(
+        state.enabled.load()
+    )
     {
         return true;
     }
 
 
 
+    /*
+     * Request capture kamera asli
+     */
     state.captureRequested.store(
         true
     );
+
 
 
     state.captured.store(
@@ -57,8 +76,17 @@ noexcept
 
 
 
+    /*
+     * Reset movement.
+     *
+     * Patch 1:
+     * Kamera tidak boleh bergerak
+     * tanpa input.
+     */
     state.velocity.x = 0.0f;
+
     state.velocity.y = 0.0f;
+
     state.velocity.z = 0.0f;
 
 
@@ -76,9 +104,12 @@ noexcept
     );
 
 
+
     return true;
 
 }
+
+
 
 
 
@@ -97,7 +128,6 @@ noexcept
 
     void* camera =
         mLastCameraComponent.load();
-
 
 
 
@@ -124,8 +154,6 @@ noexcept
 
 
 
-
-
     mLastCameraComponent.store(
         nullptr
     );
@@ -147,9 +175,13 @@ noexcept
     );
 
 
-
+    /*
+     * Bersihkan movement
+     */
     state.velocity.x = 0.0f;
+
     state.velocity.y = 0.0f;
+
     state.velocity.z = 0.0f;
 
 
@@ -165,13 +197,17 @@ noexcept
 
 
 
+
 bool NativeCameraController::isEnabled()
 const noexcept
 {
+
     return getCameraState()
         .enabled
         .load();
+
 }
+
 
 
 
@@ -183,10 +219,13 @@ const noexcept
 bool NativeCameraController::cameraCaptured()
 const noexcept
 {
+
     return getCameraState()
         .captured
         .load();
+
 }
+
 
 
 
@@ -214,14 +253,16 @@ noexcept
 
 
 
+
 void NativeCameraController::onCameraTransform(
     void* cameraComponent
 )
 noexcept
 {
 
-
-    if(cameraComponent == nullptr)
+    if(
+        cameraComponent == nullptr
+    )
     {
         return;
     }
@@ -233,13 +274,12 @@ noexcept
 
 
 
-
-    if(!state.enabled.load())
+    if(
+        !state.enabled.load()
+    )
     {
         return;
     }
-
-
 
 
 
@@ -252,19 +292,19 @@ noexcept
 
 
 
+
     /*
-        Capture kamera awal
-    */
-
-
-    if(state.captureRequested.load())
+     * Ambil posisi kamera asli
+     */
+    if(
+        state.captureRequested.load()
+    )
     {
 
 
         Vec3 pos{};
 
         CameraOrientation rot{};
-
 
 
 
@@ -275,7 +315,6 @@ noexcept
                 cameraComponent,
                 pos
             );
-
 
 
 
@@ -290,8 +329,6 @@ noexcept
 
 
 
-
-
         if(posOK)
         {
 
@@ -299,11 +336,14 @@ noexcept
                 pos;
 
 
+            /*
+             * Freecam mulai
+             * dari posisi yang sama
+             */
             state.position =
                 pos;
 
         }
-
 
 
 
@@ -323,6 +363,11 @@ noexcept
 
 
 
+        state.velocity.x = 0.0f;
+
+        state.velocity.y = 0.0f;
+
+        state.velocity.z = 0.0f;
 
 
 
@@ -337,13 +382,11 @@ noexcept
 
 
 
-
         __android_log_print(
             ANDROID_LOG_INFO,
             kLogTag,
             "Camera captured"
         );
-
 
     }
 
@@ -354,12 +397,13 @@ noexcept
 
 
 
+
     /*
-        Override camera Minecraft
-    */
-
-
-    if(state.captured.load())
+     * Override transform kamera
+     */
+    if(
+        state.captured.load()
+    )
     {
 
 
@@ -373,8 +417,6 @@ noexcept
 
 
     }
-
-
 
 
 
@@ -397,14 +439,18 @@ noexcept
 
 
 
-    if(!state.enabled.load())
+    if(
+        !state.enabled.load()
+    )
     {
         return;
     }
 
 
 
-    if(!state.captured.load())
+    if(
+        !state.captured.load()
+    )
     {
         return;
     }
@@ -414,21 +460,19 @@ noexcept
 
 
     /*
-        TEST MOVEMENT
+     * PATCH 1
+     *
+     * Jangan gerakkan kamera
+     * tanpa input.
+     *
+     * Movement akan masuk
+     * setelah touch/joystick
+     * dibuat.
+     */
 
-        Jika berhasil:
-        berarti camera hook
-        dan write transform
-        sudah bekerja.
-
-        Nanti diganti
-        dengan input player.
-    */
 
 
-    state.position.z +=
-        0.05f;
-
+    return;
 
 
 }
@@ -454,30 +498,25 @@ noexcept
 
 
 
-
-    if(!state.enabled.load())
+    if(
+        !state.enabled.load()
+    )
     {
         return;
     }
 
 
 
+    state.velocity.x = x;
 
+    state.velocity.y = y;
 
-    state.velocity.x =
-        x;
-
-
-    state.velocity.y =
-        y;
-
-
-    state.velocity.z =
-        z;
+    state.velocity.z = z;
 
 
 
 }
+
 
 
 
