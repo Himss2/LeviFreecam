@@ -52,6 +52,7 @@ add_library(
 
     # Core
     src/core/FreecamController.cpp
+    src/core/PlayerFreezeController.cpp
 
 
     # Camera Native Freecam
