@@ -59,6 +59,7 @@ add_library(
     src/camera/NativeCameraController.cpp
     src/camera/CameraHook.cpp
     src/memory/CameraResolver.cpp
+    src/camera/CameraSystemHook.cpp
 
 
     # Legacy GameMode
