@@ -3,12 +3,12 @@
 #include "camera/CameraHook.hpp"
 #include "camera/CameraController.hpp"
 
-#include <android/log.h>
 
-#include <cstdint>
+#include <android/log.h>
 
 
 #define LOG_TAG "LeviFreecam"
+
 
 
 #define LOGI(...) \
@@ -17,6 +17,7 @@
         LOG_TAG, \
         __VA_ARGS__ \
     )
+
 
 
 #define LOGE(...) \
@@ -39,11 +40,13 @@ CameraState gCameraState;
 
 
 
-bool gEnabled = false;
+bool gEnabled =
+    false;
 
 
 
-bool gInitialCaptured = false;
+bool gInitialCaptured =
+    false;
 
 
 
@@ -51,11 +54,12 @@ bool gInitialCaptured = false;
 
 
 
-CameraState& getCameraState() noexcept
+CameraState&
+getCameraState()
+noexcept
 {
     return gCameraState;
 }
-
 
 
 
@@ -64,12 +68,12 @@ NativeCameraController&
 NativeCameraController::instance()
 noexcept
 {
+
     static NativeCameraController controller;
 
     return controller;
+
 }
-
-
 
 
 
@@ -99,6 +103,7 @@ noexcept
             "Camera hook installation failed"
         );
 
+
         return false;
     }
 
@@ -111,11 +116,13 @@ noexcept
 
 
 
-    gEnabled = true;
+    gEnabled =
+        true;
 
 
 
-    gInitialCaptured = false;
+    gInitialCaptured =
+        false;
 
 
 
@@ -126,6 +133,7 @@ noexcept
 
 
     return true;
+
 }
 
 
@@ -160,10 +168,12 @@ noexcept
     );
 
 
+
     gCameraState.captureRequested.store(
         false,
         std::memory_order_release
     );
+
 
 
     gCameraState.captured.store(
@@ -180,17 +190,25 @@ noexcept
 
 
 
-    gInitialCaptured = false;
+    gCameraState.position = {};
+
+    gCameraState.velocity = {};
 
 
 
-    gEnabled = false;
+    gInitialCaptured =
+        false;
+
+
+
+    gEnabled =
+        false;
 
 
 
     return true;
-}
 
+}
 
 
 
@@ -206,18 +224,16 @@ const noexcept
 
 
 
-
 bool NativeCameraController::cameraCaptured()
 const noexcept
 {
+
     return
         gCameraState.captured.load(
             std::memory_order_acquire
         );
+
 }
-
-
-
 
 
 
@@ -233,19 +249,37 @@ noexcept
     }
 
 
-
     /*
-     * nanti masuk:
      *
-     * keyboard
-     * joystick
-     * touch drag
+     * Movement masuk di sini.
+     *
+     * Saat ini hanya update state.
      *
      */
 
+
+
+    auto& state =
+        getCameraState();
+
+
+
+    state.position.x +=
+        state.velocity.x;
+
+
+
+    state.position.y +=
+        state.velocity.y;
+
+
+
+    state.position.z +=
+        state.velocity.z;
+
+
+
 }
-
-
 
 
 
@@ -270,14 +304,13 @@ noexcept
 
 
 
-
+    /*
+     * Simpan camera component asli.
+     */
     mLastCameraComponent.store(
         cameraComponent,
         std::memory_order_release
     );
-
-
-
 
 
 
@@ -288,11 +321,14 @@ noexcept
 
 
 
-
     /*
-     * Capture posisi awal kamera sekali.
+     * Capture posisi kamera asli.
+     *
+     * Jangan overwrite transform.
+     *
+     * Karena CameraComponent masih
+     * terhubung dengan LocalPlayer.
      */
-
     if(
         !gInitialCaptured
     )
@@ -301,36 +337,21 @@ noexcept
 
         if(
             CameraController::
-                instance()
-                .readPosition(
-                    cameraComponent,
-                    state.position
-                )
+            instance()
+            .readPosition(
+                cameraComponent,
+                state.position
+            )
         )
         {
 
 
             LOGI(
-                "Camera position captured %.2f %.2f %.2f",
+                "Camera base %.2f %.2f %.2f",
                 state.position.x,
                 state.position.y,
                 state.position.z
             );
-
-
-
-            /*
-             * TEST OVERRIDE
-             *
-             * Geser kamera 5 block.
-             *
-             */
-
-            state.position.z += 5.0f;
-
-
-
-            gInitialCaptured = true;
 
 
 
@@ -340,31 +361,18 @@ noexcept
             );
 
 
+
+            gInitialCaptured =
+                true;
+
         }
+
 
     }
 
 
 
-
-
-
-    /*
-     * Tulis posisi kamera baru
-     */
-
-    CameraController::
-        instance()
-        .writePosition(
-            cameraComponent,
-            state.position
-        );
-
-
-
 }
-
-
 
 
 
@@ -379,7 +387,6 @@ void NativeCameraController::translate(
 )
 noexcept
 {
-
 
     auto& state =
         getCameraState();
@@ -402,7 +409,6 @@ noexcept
 
 
 
-
 void NativeCameraController::requestRecapture()
 noexcept
 {
@@ -413,10 +419,11 @@ noexcept
     );
 
 
-    gInitialCaptured = false;
+
+    gInitialCaptured =
+        false;
 
 }
-
 
 
 
