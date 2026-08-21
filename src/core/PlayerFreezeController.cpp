@@ -1,17 +1,25 @@
 #include "core/PlayerFreezeController.hpp"
 
+
 #include <android/log.h>
+
 
 
 namespace levifreecam {
 
 
+
 namespace {
 
+
 constexpr char kLogTag[] =
-    "LeviFreecam";
+    "Levi Freecam";
+
 
 }
+
+
+
 
 
 
@@ -22,9 +30,14 @@ noexcept
 
     static PlayerFreezeController controller;
 
+
     return controller;
 
 }
+
+
+
+
 
 
 
@@ -43,16 +56,18 @@ noexcept
 
 
 
-    /*
-     * Jangan enable berulang.
-     *
-     * Sebelumnya fungsi ini dipanggil
-     * setiap tick sehingga log spam.
-     */
-    if(mEnabled.load())
+
+
+
+    if(
+        mEnabled.load()
+    )
     {
         return;
     }
+
+
+
 
 
 
@@ -65,17 +80,32 @@ noexcept
 
 
 
+
+
+
+
     /*
-     * Backup posisi sementara.
+     * Jangan isi posisi dummy.
      *
-     * Nanti diganti dengan:
+     * Offset Actor belum final.
      *
-     * Actor::getPosition()
-     * Actor::getRotation()
+     * Memory write akan masuk
+     * setelah RE Actor selesai.
      */
+
     mPosition[0] = 0.0f;
     mPosition[1] = 0.0f;
     mPosition[2] = 0.0f;
+
+
+
+
+    mRotation[0] = 0.0f;
+    mRotation[1] = 0.0f;
+
+
+
+
 
 
 
@@ -85,13 +115,22 @@ noexcept
 
 
 
+
+
+
+
     __android_log_print(
         ANDROID_LOG_INFO,
         kLogTag,
+
         "Player freeze enabled"
     );
 
+
 }
+
+
+
 
 
 
@@ -113,6 +152,9 @@ noexcept
 
 
 
+
+
+
     if(player == nullptr)
     {
         return;
@@ -120,20 +162,29 @@ noexcept
 
 
 
+
+
+
     /*
-     * TEMPORARY
+     * PLACEHOLDER
      *
-     * Belum melakukan memory write.
+     * Native freeze belum melakukan
+     * memory modification.
      *
-     * Nanti masuk:
+     * Tahap berikut:
      *
-     * Actor::setPosition()
-     * Actor::setVelocity()
-     * resetFallDistance()
+     * Actor velocity lock
+     * Actor position lock
+     * Input lock
      *
      */
 
+
+
 }
+
+
+
 
 
 
@@ -144,13 +195,15 @@ void PlayerFreezeController::disable()
 noexcept
 {
 
-    /*
-     * Jangan disable ulang
-     */
-    if(!mEnabled.load())
+    if(
+        !mEnabled.load()
+    )
     {
         return;
     }
+
+
+
 
 
 
@@ -160,19 +213,30 @@ noexcept
 
 
 
+
+
+
     mPlayer.store(
         nullptr
     );
 
 
 
+
+
+
     __android_log_print(
         ANDROID_LOG_INFO,
         kLogTag,
+
         "Player freeze disabled"
     );
 
+
 }
+
+
+
 
 
 
@@ -183,7 +247,8 @@ bool PlayerFreezeController::enabled()
 const noexcept
 {
 
-    return mEnabled.load();
+    return
+        mEnabled.load();
 
 }
 
