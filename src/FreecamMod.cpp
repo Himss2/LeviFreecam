@@ -1,32 +1,20 @@
 #include "FreecamMod.hpp"
 
-
 #include "core/FreecamController.hpp"
-
 #include "camera/CameraHook.hpp"
 
-
 #include <pl/Mod.hpp>
-
 
 
 namespace levifreecam {
 
 
-
 FreecamMod&
 FreecamMod::instance()
 {
-
     static FreecamMod mod;
-
     return mod;
-
 }
-
-
-
-
 
 
 
@@ -41,21 +29,12 @@ FreecamMod::FreecamMod()
 
 
 
-
-
-
-
 ll::mod::NativeMod&
 FreecamMod::getSelf()
 const noexcept
 {
-
     return mSelf;
-
 }
-
-
-
 
 
 
@@ -65,17 +44,15 @@ const noexcept
 bool FreecamMod::load()
 {
 
-    getSelf().
-    getLogger().
-    info(
-        "Loading Levi Freecam Native v1.0"
-    );
+    getSelf()
+        .getLogger()
+        .info(
+            "Loading Levi Freecam Native v1.0"
+        );
 
 
     return true;
-
 }
-
 
 
 
@@ -87,37 +64,32 @@ bool FreecamMod::load()
 bool FreecamMod::enable()
 {
 
-    auto& self =
-        getSelf();
+    auto& self = getSelf();
 
 
 
     /*
      * Install LocalPlayer tick hook
      */
-    if(
-        !mPlayerHook.install()
-    )
+    if(!mPlayerHook.install())
     {
 
-        self.getLogger().
-        error(
-            "Failed install Player hook"
-        );
+        self.getLogger()
+            .error(
+                "Failed install Player hook"
+            );
 
 
         return false;
-
     }
 
 
 
+    self.getLogger()
+        .info(
+            "Player hook installed"
+        );
 
-    self.getLogger().
-    info(
-        "Player hook installed 0x{:x}",
-        mPlayerHook.targetAddress()
-    );
 
 
 
@@ -127,22 +99,19 @@ bool FreecamMod::enable()
     /*
      * Install packet hook
      */
-    if(
-        !mPacketHook.install()
-    )
+    if(!mPacketHook.install())
     {
 
-        self.getLogger().
-        error(
-            "Failed install Packet hook"
-        );
+        self.getLogger()
+            .error(
+                "Failed install Packet hook"
+            );
 
 
         mPlayerHook.uninstall();
 
 
         return false;
-
     }
 
 
@@ -150,18 +119,18 @@ bool FreecamMod::enable()
 
 
 
+
+
     /*
-     * Install native camera hook
+     * Install camera hook
      */
-    if(
-        !camera::installCameraHook()
-    )
+    if(!camera::installCameraHook())
     {
 
-        self.getLogger().
-        error(
-            "Camera hook failed"
-        );
+        self.getLogger()
+            .error(
+                "Camera hook failed"
+            );
 
 
         mPacketHook.uninstall();
@@ -170,19 +139,17 @@ bool FreecamMod::enable()
 
 
         return false;
-
     }
 
 
 
 
 
+    self.getLogger()
+        .info(
+            "Camera hook installed"
+        );
 
-    self.getLogger().
-    info(
-        "Camera hook installed 0x{:x}",
-        camera::cameraSystemAddress()
-    );
 
 
 
@@ -199,7 +166,6 @@ bool FreecamMod::enable()
             self.getId(),
 
 
-
             [this](bool enabled)
             {
 
@@ -208,7 +174,6 @@ bool FreecamMod::enable()
                 );
 
             },
-
 
 
             [this](bool active)
@@ -226,16 +191,18 @@ bool FreecamMod::enable()
 
 
 
+
+
     if(!registered)
     {
 
-        self.getLogger().
-        error(
-            "Failed register ModMenu"
-        );
+        self.getLogger()
+            .error(
+                "Failed register ModMenu"
+            );
 
 
-        camera::removeCameraSystemHook();
+        camera::removeCameraHook();
 
 
         mPacketHook.uninstall();
@@ -252,10 +219,11 @@ bool FreecamMod::enable()
 
 
 
-    self.getLogger().
-    info(
-        "Levi Native Freecam Ready"
-    );
+
+    self.getLogger()
+        .info(
+            "Levi Native Freecam Ready"
+        );
 
 
 
@@ -277,17 +245,13 @@ bool FreecamMod::disable()
     restoreAndReset();
 
 
-
-    camera::removeCameraSystemHook();
-
+    camera::removeCameraHook();
 
 
     mModMenu.unregisterAll();
 
 
-
     mPacketHook.uninstall();
-
 
 
     mPlayerHook.uninstall();
@@ -295,12 +259,11 @@ bool FreecamMod::disable()
 
 
 
-
-    getSelf().
-    getLogger().
-    info(
-        "Levi Freecam disabled"
-    );
+    getSelf()
+        .getLogger()
+        .info(
+            "Levi Freecam disabled"
+        );
 
 
 
@@ -322,17 +285,13 @@ bool FreecamMod::unload()
     restoreAndReset();
 
 
-
-    camera::removeCameraSystemHook();
-
+    camera::removeCameraHook();
 
 
     mModMenu.unregisterAll();
 
 
-
     mPacketHook.uninstall();
-
 
 
     mPlayerHook.uninstall();
@@ -340,12 +299,11 @@ bool FreecamMod::unload()
 
 
 
-    getSelf().
-    getLogger().
-    info(
-        "Levi Freecam unloaded"
-    );
-
+    getSelf()
+        .getLogger()
+        .info(
+            "Levi Freecam unloaded"
+        );
 
 
     return true;
@@ -366,21 +324,21 @@ void FreecamMod::setModuleEnabled(
 {
 
     FreecamController::
-    instance()
-    .setModuleEnabled(
-        enabled
-    );
+        instance()
+        .setModuleEnabled(
+            enabled
+        );
 
 
 
-    getSelf().
-    getLogger().
-    info(
-        "Freecam module {}",
-        enabled
-        ? "ON"
-        : "OFF"
-    );
+    getSelf()
+        .getLogger()
+        .info(
+            "Freecam module {}",
+            enabled
+            ? "ON"
+            : "OFF"
+        );
 
 }
 
@@ -409,14 +367,14 @@ void FreecamMod::setCameraActive(
 
 
 
-    getSelf().
-    getLogger().
-    info(
-        "Camera {}",
-        active
-        ? "ON"
-        : "OFF"
-    );
+    getSelf()
+        .getLogger()
+        .info(
+            "Camera {}",
+            active
+            ? "ON"
+            : "OFF"
+        );
 
 }
 
@@ -443,13 +401,7 @@ void FreecamMod::restoreAndReset()
 
     controller.forceDisable();
 
-
-
 }
-
-
-
-
 
 
 }
