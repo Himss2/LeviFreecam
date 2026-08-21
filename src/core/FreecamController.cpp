@@ -1,31 +1,40 @@
 #include "core/FreecamController.hpp"
 
+
 #include "camera/NativeCameraController.hpp"
+#include "game/GameModeController.hpp"
+
 
 #include <android/log.h>
 
-#include <cstdint>
 
 
 namespace levifreecam {
 
 
+
 namespace {
+
 
 constexpr char kLogTag[] =
     "Levi Freecam";
 
 
+
 }
+
 
 
 FreecamController&
 FreecamController::instance()
 {
+
     static FreecamController controller;
 
     return controller;
+
 }
+
 
 
 
@@ -35,28 +44,33 @@ void FreecamController::setModuleEnabled(
 {
 
     mModuleEnabled.store(
-        enabled,
-        std::memory_order_release
+        enabled
     );
 
 
-    if (!enabled)
+    if(!enabled)
     {
+
         mRequestedActive.store(
-            false,
-            std::memory_order_release
+            false
         );
 
 
-        /*
-         * Matikan native camera.
-         */
+        restoreNow();
+
+
         camera::
         NativeCameraController::
         instance()
         .disable();
+
+
+        clearSessionState();
+
     }
+
 }
+
 
 
 
@@ -66,7 +80,8 @@ void FreecamController::setActive(
 ) noexcept
 {
 
-    if (
+
+    if(
         active &&
         !moduleEnabled()
     )
@@ -75,44 +90,38 @@ void FreecamController::setActive(
     }
 
 
+
     mRequestedActive.store(
-        active,
-        std::memory_order_release
+        active
     );
 
 
-    if (active)
+
+    if(active)
     {
 
-        if (
-            camera::
-            NativeCameraController::
-            instance()
-            .enable()
-        )
-        {
 
-            __android_log_print(
-                ANDROID_LOG_INFO,
-                kLogTag,
-                "Native Freecam enabled"
-            );
+        camera::
+        NativeCameraController::
+        instance()
+        .enable();
 
-        }
-        else
-        {
 
-            __android_log_print(
-                ANDROID_LOG_ERROR,
-                kLogTag,
-                "Native Freecam failed"
-            );
 
-        }
+        __android_log_print(
+            ANDROID_LOG_INFO,
+            kLogTag,
+            "Freecam requested ON"
+        );
+
 
     }
     else
     {
+
+
+        restoreNow();
+
 
         camera::
         NativeCameraController::
@@ -120,14 +129,20 @@ void FreecamController::setActive(
         .disable();
 
 
+
         __android_log_print(
             ANDROID_LOG_INFO,
             kLogTag,
-            "Native Freecam disabled"
+            "Freecam requested OFF"
         );
 
+
     }
+
+
 }
+
+
 
 
 
@@ -137,30 +152,19 @@ void FreecamController::onLocalPlayerTick(
 ) noexcept
 {
 
-    if(localPlayer == nullptr)
-    {
+
+    if(localPlayer==nullptr)
         return;
-    }
+
 
 
     /*
-     * Simpan player reference.
-     *
-     * Tidak lagi digunakan untuk
-     * GameType.
+     * simpan player
      */
     mCurrentPlayer.store(
-        localPlayer,
-        std::memory_order_release
+        localPlayer
     );
 
-
-    if(
-        !moduleEnabled()
-    )
-    {
-        return;
-    }
 
 
     if(
@@ -171,48 +175,257 @@ void FreecamController::onLocalPlayerTick(
     }
 
 
+
+    auto& gameMode =
+        game::
+        GameModeController::
+        instance();
+
+
+
     /*
-     * Update native camera.
-     *
-     * Player tetap normal.
+     * Resolve safety
      */
+    if(
+        !gameMode.available()
+    )
+    {
+
+        __android_log_print(
+            ANDROID_LOG_ERROR,
+            kLogTag,
+            "GameMode unavailable"
+        );
+
+        return;
+
+    }
+
+
+
+
+    /*
+     * Apply spectator sekali
+     */
+
+    if(
+        !mSpectatorApplied.load()
+    )
+    {
+
+
+        auto current =
+            gameMode.getLocalGameType(
+                localPlayer
+            );
+
+
+
+        if(
+            current.has_value()
+        )
+        {
+
+
+            if(
+                !mOriginalGameTypeValid.load()
+            )
+            {
+
+
+                mOriginalGameType.store(
+                    current.value()
+                );
+
+
+                mOriginalGameTypeValid.store(
+                    true
+                );
+
+
+                __android_log_print(
+                    ANDROID_LOG_INFO,
+                    kLogTag,
+                    "Saved GameType %d",
+                    current.value()
+                );
+
+            }
+
+
+
+            if(
+                gameMode.setLocalGameType(
+                    localPlayer,
+                    game::GameType::Spectator
+                )
+            )
+            {
+
+                mSpectatorApplied.store(
+                    true
+                );
+
+
+                __android_log_print(
+                    ANDROID_LOG_INFO,
+                    kLogTag,
+                    "Spectator mode applied"
+                );
+
+
+            }
+
+
+        }
+
+
+    }
+
+
+
+
+    /*
+     * Refresh spectator
+     *
+     * agar Minecraft tidak overwrite
+     */
+
+    auto tick =
+        mSpectatorRefreshTicks.fetch_add(
+            1
+        );
+
+
+
+    if(
+        tick > 40
+    )
+    {
+
+        gameMode.setLocalGameType(
+            localPlayer,
+            game::GameType::Spectator
+        );
+
+
+        mSpectatorRefreshTicks.store(
+            0
+        );
+
+    }
+
+
+
+
+
     camera::
     NativeCameraController::
     instance()
     .update();
 
+
 }
+
+
+
+
 
 
 
 
 bool FreecamController::restoreNow()
-    noexcept
+noexcept
 {
 
-    return camera::
-    NativeCameraController::
-    instance()
-    .disable();
+
+    auto player =
+        mCurrentPlayer.load();
+
+
+
+    if(
+        player==nullptr
+    )
+    {
+        return false;
+    }
+
+
+
+    if(
+        !mOriginalGameTypeValid.load()
+    )
+    {
+        return false;
+    }
+
+
+
+    auto& gameMode =
+        game::
+        GameModeController::
+        instance();
+
+
+
+    bool result =
+        gameMode.setLocalGameType(
+            player,
+            mOriginalGameType.load()
+        );
+
+
+
+    if(result)
+    {
+
+
+        __android_log_print(
+            ANDROID_LOG_INFO,
+            kLogTag,
+            "GameType restored"
+        );
+
+
+        mSpectatorApplied.store(
+            false
+        );
+
+
+        mOriginalGameTypeValid.store(
+            false
+        );
+
+
+    }
+
+
+
+    return result;
 
 }
 
 
 
 
+
+
 void FreecamController::forceDisable()
-    noexcept
+noexcept
 {
 
+    restoreNow();
+
+
+
     mModuleEnabled.store(
-        false,
-        std::memory_order_release
+        false
     );
 
 
     mRequestedActive.store(
-        false,
-        std::memory_order_release
+        false
     );
 
 
@@ -222,50 +435,58 @@ void FreecamController::forceDisable()
     .disable();
 
 
+
     clearSessionState();
+
 }
+
+
 
 
 
 
 void FreecamController::clearSessionState()
-    noexcept
+noexcept
 {
 
+
     mCurrentPlayer.store(
-        nullptr,
-        std::memory_order_release
+        nullptr
     );
 
 
-    mPlayerAuthInputSeen.store(
-        0,
-        std::memory_order_release
+    mSpectatorApplied.store(
+        false
+    );
+
+
+    mOriginalGameTypeValid.store(
+        false
+    );
+
+
+    mSpectatorRefreshTicks.store(
+        0
     );
 
 
 }
+
+
 
 
 
 
 void FreecamController::notePlayerAuthInput()
-    noexcept
+noexcept
 {
 
-    /*
-     * Tetap dipertahankan agar
-     * kompatibel dengan PacketHook lama.
-     *
-     * Tidak lagi dipakai untuk block.
-     */
-
     mPlayerAuthInputSeen.fetch_add(
-        1,
-        std::memory_order_relaxed
+        1
     );
 
 }
+
 
 
 
@@ -273,24 +494,15 @@ void FreecamController::notePlayerAuthInput()
 bool FreecamController::moduleEnabled()
 const noexcept
 {
-
-    return mModuleEnabled.load(
-        std::memory_order_acquire
-    );
-
+    return mModuleEnabled.load();
 }
-
 
 
 
 bool FreecamController::active()
 const noexcept
 {
-
-    return mRequestedActive.load(
-        std::memory_order_acquire
-    );
-
+    return mRequestedActive.load();
 }
 
 
@@ -299,15 +511,7 @@ const noexcept
 bool FreecamController::spectatorApplied()
 const noexcept
 {
-
-    /*
-     * Compatibility.
-     *
-     * Spectator sudah tidak digunakan.
-     */
-
-    return false;
-
+    return mSpectatorApplied.load();
 }
 
 
@@ -317,14 +521,8 @@ bool FreecamController::shouldSuppressPlayerAuthInput()
 const noexcept
 {
 
-    /*
-     * Native camera tidak mengubah
-     * posisi player.
-
-     * Packet tidak perlu diblok.
-     */
-
-    return false;
+    return
+        spectatorApplied();
 
 }
 
@@ -336,12 +534,11 @@ FreecamController::playerAuthInputSeen()
 const noexcept
 {
 
-    return mPlayerAuthInputSeen.load(
-        std::memory_order_relaxed
-    );
+    return
+        mPlayerAuthInputSeen.load();
 
 }
 
 
 
-} // namespace levifreecam
+}
