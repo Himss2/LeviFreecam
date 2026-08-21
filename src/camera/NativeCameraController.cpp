@@ -1,41 +1,29 @@
 #include "camera/NativeCameraController.hpp"
 
-
 #include "camera/CameraController.hpp"
 
-
 #include <android/log.h>
-
 
 
 namespace levifreecam::camera {
 
 
-
 namespace {
-
 
 constexpr char kLogTag[] =
     "Levi Freecam";
 
 
-
 }
-
 
 
 NativeCameraController&
 NativeCameraController::instance()
 noexcept
 {
-
     static NativeCameraController controller;
-
     return controller;
-
 }
-
-
 
 
 
@@ -43,29 +31,21 @@ bool NativeCameraController::enable()
 noexcept
 {
 
-    auto& state =
-        getCameraState();
+    auto& state = getCameraState();
 
 
-
-    if(
-        state.enabled.load()
-    )
+    if(state.enabled.load())
     {
         return true;
     }
 
 
+    state.captureRequested.store(true);
 
-    state.captureRequested.store(
-        true
-    );
-
+    state.captured.store(false);
 
 
-    state.enabled.store(
-        true
-    );
+    state.enabled.store(true);
 
 
 
@@ -76,12 +56,8 @@ noexcept
     );
 
 
-
     return true;
-
 }
-
-
 
 
 
@@ -90,9 +66,7 @@ bool NativeCameraController::disable()
 noexcept
 {
 
-    auto& state =
-        getCameraState();
-
+    auto& state = getCameraState();
 
 
     void* camera =
@@ -100,26 +74,15 @@ noexcept
 
 
 
-    if(
-        camera != nullptr
-    )
+    if(camera)
     {
-
-
-        /*
-         * Restore kamera asli Minecraft
-         */
 
         CameraController::
         instance()
         .setTransform(
-
             camera,
-
             state.originalPosition,
-
             state.originalOrientation
-
         );
 
 
@@ -133,34 +96,15 @@ noexcept
 
 
 
-
-    mLastCameraComponent.store(
-        nullptr
-    );
+    mLastCameraComponent.store(nullptr);
 
 
 
-    state.enabled.store(
-        false
-    );
+    state.enabled.store(false);
 
+    state.captured.store(false);
 
-    state.captured.store(
-        false
-    );
-
-
-    state.captureRequested.store(
-        false
-    );
-
-
-
-    __android_log_print(
-        ANDROID_LOG_INFO,
-        kLogTag,
-        "Native camera disabled"
-    );
+    state.captureRequested.store(false);
 
 
 
@@ -172,19 +116,13 @@ noexcept
 
 
 
-
-
 bool NativeCameraController::isEnabled()
 const noexcept
 {
-
     return getCameraState()
         .enabled
         .load();
-
 }
-
-
 
 
 
@@ -192,15 +130,10 @@ const noexcept
 bool NativeCameraController::cameraCaptured()
 const noexcept
 {
-
     return getCameraState()
         .captured
         .load();
-
 }
-
-
-
 
 
 
@@ -208,17 +141,10 @@ const noexcept
 void NativeCameraController::requestRecapture()
 noexcept
 {
-
     getCameraState()
         .captureRequested
-        .store(
-            true
-        );
-
+        .store(true);
 }
-
-
-
 
 
 
@@ -230,9 +156,8 @@ void NativeCameraController::onCameraTransform(
 noexcept
 {
 
-    if(
-        cameraComponent == nullptr
-    )
+
+    if(cameraComponent == nullptr)
     {
         return;
     }
@@ -244,17 +169,10 @@ noexcept
 
 
 
-
-
-    if(
-        !state.enabled.load()
-    )
+    if(!state.enabled.load())
     {
         return;
     }
-
-
-
 
 
 
@@ -265,100 +183,73 @@ noexcept
 
 
 
-
-
-
     /*
-     * Capture pertama kali
-     *
-     * Simpan transform kamera asli
-     */
+        Capture awal
+    */
 
-    if(
-        state.captureRequested.load()
-    )
+    if(state.captureRequested.load())
     {
 
 
-        Vec3 position{};
+        Vec3 pos{};
 
-        CameraOrientation orientation{};
-
-
+        CameraOrientation rot{};
 
 
-        bool positionOK =
+
+        bool posOK =
             CameraController::
             instance()
             .readPosition(
-
                 cameraComponent,
-
-                position
-
+                pos
             );
 
 
 
-        bool rotationOK =
+        bool rotOK =
             CameraController::
             instance()
             .readOrientation(
-
                 cameraComponent,
-
-                orientation
-
+                rot
             );
 
 
 
 
-        if(
-            positionOK
-        )
+        if(posOK)
         {
 
             state.originalPosition =
-                position;
+                pos;
 
 
             state.position =
-                position;
+                pos;
 
         }
 
 
 
 
-
-        if(
-            rotationOK
-        )
+        if(rotOK)
         {
 
             state.originalOrientation =
-                orientation;
+                rot;
 
 
             state.orientation =
-                orientation;
+                rot;
 
         }
 
 
 
+        state.captureRequested.store(false);
 
-
-
-        state.captureRequested.store(
-            false
-        );
-
-
-        state.captured.store(
-            true
-        );
+        state.captured.store(true);
 
 
 
@@ -368,40 +259,34 @@ noexcept
             "Camera captured"
         );
 
-
     }
 
 
 
 
 
-
-
-
     /*
-     * Jika freecam aktif
-     *
-     * Override kamera Minecraft
-     */
+        Override kamera asli
+    */
 
-    CameraController::
-    instance()
-    .setTransform(
+    if(state.captured.load())
+    {
 
-        cameraComponent,
 
-        state.position,
+        CameraController::
+        instance()
+        .setTransform(
+            cameraComponent,
+            state.position,
+            state.orientation
+        );
 
-        state.orientation
 
-    );
+    }
 
 
 
 }
-
-
-
 
 
 
@@ -417,45 +302,44 @@ noexcept
 
 
 
-
-    if(
-        !state.enabled.load()
-    )
+    if(!state.enabled.load())
     {
         return;
     }
 
 
 
-
-    if(
-        !state.captured.load()
-    )
+    if(!state.captured.load())
     {
         return;
     }
-
 
 
 
     /*
-     *
-     * Movement integration point
-     *
-     * Nanti masuk:
-     *
-     * joystick
-     * touch drag
-     * keyboard
-     *
-     */
+        movement sementara
+
+        nanti diganti:
+        touch
+        joystick
+        keyboard
+    */
+
+
+    state.position.x +=
+        state.velocity.x;
+
+
+    state.position.y +=
+        state.velocity.y;
+
+
+    state.position.z +=
+        state.velocity.z;
 
 
 
 }
-
-
-
 
 
 
@@ -475,27 +359,22 @@ noexcept
 
 
 
-    if(
-        !state.enabled.load()
-    )
+    if(!state.enabled.load())
     {
         return;
     }
 
 
 
+    state.velocity.x = x;
 
+    state.velocity.y = y;
 
-    state.position.x += x;
-
-    state.position.y += y;
-
-    state.position.z += z;
+    state.velocity.z = z;
 
 
 
 }
-
 
 
 
