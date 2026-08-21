@@ -1,8 +1,6 @@
 #include "core/FreecamController.hpp"
 
-
 #include "camera/NativeCameraController.hpp"
-
 
 #include <android/log.h>
 
@@ -15,6 +13,7 @@ namespace {
 constexpr char kLogTag[] =
     "Levi Freecam";
 
+
 }
 
 
@@ -26,6 +25,8 @@ FreecamController::instance()
 
     return controller;
 }
+
+
 
 
 
@@ -72,6 +73,10 @@ noexcept
 
 
 
+
+
+
+
 void FreecamController::setActive(
     bool active
 )
@@ -98,7 +103,6 @@ noexcept
     if(active)
     {
 
-
         camera::
         NativeCameraController::
         instance()
@@ -109,17 +113,14 @@ noexcept
         __android_log_print(
             ANDROID_LOG_INFO,
             kLogTag,
-            "Freecam ON"
+            "Native Freecam enabled"
         );
-
 
     }
     else
     {
 
-
         restoreNow();
-
 
 
         camera::
@@ -138,7 +139,7 @@ noexcept
         __android_log_print(
             ANDROID_LOG_INFO,
             kLogTag,
-            "Freecam OFF"
+            "Native Freecam disabled"
         );
 
     }
@@ -149,12 +150,14 @@ noexcept
 
 
 
+
+
+
 void FreecamController::onLocalPlayerTick(
     void* localPlayer
 )
 noexcept
 {
-
 
     if(localPlayer == nullptr)
         return;
@@ -167,9 +170,7 @@ noexcept
 
 
 
-    if(
-        !active()
-    )
+    if(!active())
     {
         return;
     }
@@ -177,14 +178,8 @@ noexcept
 
 
     /*
-     * FREECAM WITHOUT SPECTATOR
-     *
-     * Player tetap game mode asli.
-     *
-     * Kita hanya freeze entity.
+     * Freeze player hanya saat freecam aktif
      */
-
-
     PlayerFreezeController::
     instance()
     .enable(
@@ -201,6 +196,9 @@ noexcept
 
 
 
+    /*
+     * Update virtual camera
+     */
     camera::
     NativeCameraController::
     instance()
@@ -212,20 +210,31 @@ noexcept
 
 
 
+
+
+
 bool FreecamController::restoreNow()
 noexcept
 {
 
     /*
-     * Tidak ada restore gamemode.
-     *
-     * Spectator sudah diputus.
+     * Native camera controller
+     * menangani restore transform
      */
+
+    camera::
+    NativeCameraController::
+    instance()
+    .disable();
+
 
 
     return true;
 
 }
+
+
+
 
 
 
@@ -245,14 +254,14 @@ noexcept
 
 
 
-    PlayerFreezeController::
+    camera::
+    NativeCameraController::
     instance()
     .disable();
 
 
 
-    camera::
-    NativeCameraController::
+    PlayerFreezeController::
     instance()
     .disable();
 
@@ -265,10 +274,12 @@ noexcept
 
 
 
+
+
+
 void FreecamController::clearSessionState()
 noexcept
 {
-
 
     mCurrentPlayer.store(
         nullptr
@@ -276,6 +287,9 @@ noexcept
 
 
 }
+
+
+
 
 
 
@@ -293,6 +307,9 @@ noexcept
 
 
 
+
+
+
 bool FreecamController::moduleEnabled()
 const noexcept
 {
@@ -300,6 +317,9 @@ const noexcept
     return mModuleEnabled.load();
 
 }
+
+
+
 
 
 
@@ -315,24 +335,46 @@ const noexcept
 
 
 
+
+
+
+bool FreecamController::cameraActive()
+const noexcept
+{
+
+    return camera::
+        NativeCameraController::
+        instance()
+        .isEnabled();
+
+}
+
+
+
+
+
+
+
 bool FreecamController::shouldSuppressPlayerAuthInput()
 const noexcept
 {
 
     /*
-     * Sebelumnya:
+     * Tidak lagi bergantung spectator.
      *
-     * return spectatorApplied()
+     * Untuk tahap awal native freecam:
+     * packet tetap normal.
      *
-     * Sekarang:
-     *
-     * Freecam aktif langsung block input.
+     * Nanti bisa diganti dengan
+     * input isolation layer.
      */
 
-
-    return active();
+    return false;
 
 }
+
+
+
 
 
 
@@ -342,7 +384,8 @@ FreecamController::playerAuthInputSeen()
 const noexcept
 {
 
-    return mPlayerAuthInputSeen.load();
+    return
+        mPlayerAuthInputSeen.load();
 
 }
 
