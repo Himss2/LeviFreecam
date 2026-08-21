@@ -1,75 +1,28 @@
 #include "camera/NativeCameraController.hpp"
 
 
-#include "camera/CameraHook.hpp"
 #include "camera/CameraController.hpp"
-
+#include "memory/CameraResolver.hpp"
 
 
 #include <android/log.h>
 
 
-
-#define LOG_TAG "LeviFreecam"
-
-
-
-#define LOGI(...) \
-    __android_log_print( \
-        ANDROID_LOG_INFO, \
-        LOG_TAG, \
-        __VA_ARGS__ \
-    )
-
-
-
-#define LOGE(...) \
-    __android_log_print( \
-        ANDROID_LOG_ERROR, \
-        LOG_TAG, \
-        __VA_ARGS__ \
-    )
-
-
-
 namespace levifreecam::camera {
-
 
 
 namespace {
 
 
-CameraState gCameraState;
-
-
-
-bool gEnabled=false;
-
-
-bool gInitialCaptured=false;
-
+constexpr char kLogTag[] =
+    "Levi Freecam";
 
 
 }
-
-
-
-
-
-CameraState&
-getCameraState()
-noexcept
-{
-    return gCameraState;
-}
-
-
-
 
 
 NativeCameraController&
-NativeCameraController::instance()
-noexcept
+NativeCameraController::instance() noexcept
 {
 
     static NativeCameraController controller;
@@ -82,55 +35,28 @@ noexcept
 
 
 
-bool NativeCameraController::enable()
-noexcept
+bool NativeCameraController::enable() noexcept
 {
 
-
-    LOGI(
-        "Native camera enable requested"
-    );
+    auto& state =
+        getCameraState();
 
 
-
-    if(gEnabled)
-        return true;
-
-
-
-    if(
-        !installCameraHook()
-    )
-    {
-
-        LOGE(
-            "Camera hook failed"
-        );
-
-
-        return false;
-
-    }
-
-
-
-    gCameraState.enabled.store(
+    state.enabled.store(
         true
     );
 
 
-
-    gEnabled=true;
-
-
-    gInitialCaptured=false;
-
-
-
-    LOGI(
-        "Native camera enabled"
+    state.captureRequested.store(
+        true
     );
 
+
+    __android_log_print(
+        ANDROID_LOG_INFO,
+        kLogTag,
+        "Native camera enabled"
+    );
 
 
     return true;
@@ -141,30 +67,38 @@ noexcept
 
 
 
-
-bool NativeCameraController::disable()
-noexcept
+bool NativeCameraController::disable() noexcept
 {
 
-
-    LOGI(
-        "Native camera disable"
-    );
+    auto& state =
+        getCameraState();
 
 
-
-    removeCameraHook();
-
-
-
-    gCameraState.enabled.store(
-        false
-    );
+    void* camera =
+        mLastCameraComponent.load();
 
 
-    gCameraState.captured.store(
-        false
-    );
+    if(
+        camera != nullptr
+    )
+    {
+
+        CameraController::
+        instance()
+        .writePosition(
+            camera,
+            state.position
+        );
+
+
+        CameraController::
+        instance()
+        .writeOrientation(
+            camera,
+            state.orientation
+        );
+
+    }
 
 
 
@@ -173,12 +107,27 @@ noexcept
     );
 
 
+    state.enabled.store(
+        false
+    );
 
-    gInitialCaptured=false;
+
+    state.captured.store(
+        false
+    );
 
 
-    gEnabled=false;
+    state.captureRequested.store(
+        false
+    );
 
+
+
+    __android_log_print(
+        ANDROID_LOG_INFO,
+        kLogTag,
+        "Native camera disabled"
+    );
 
 
     return true;
@@ -189,13 +138,15 @@ noexcept
 
 
 
-
 bool NativeCameraController::isEnabled()
 const noexcept
 {
-    return gEnabled;
-}
 
+    return getCameraState()
+        .enabled
+        .load();
+
+}
 
 
 
@@ -205,11 +156,161 @@ bool NativeCameraController::cameraCaptured()
 const noexcept
 {
 
-    return
-        gCameraState.captured.load();
+    return getCameraState()
+        .captured
+        .load();
 
 }
 
+
+
+
+
+void NativeCameraController::requestRecapture()
+noexcept
+{
+
+    getCameraState()
+        .captureRequested
+        .store(
+            true
+        );
+
+}
+
+
+
+
+
+void NativeCameraController::onCameraTransform(
+    void* cameraComponent
+) noexcept
+{
+
+
+    if(
+        cameraComponent == nullptr
+    )
+    {
+        return;
+    }
+
+
+
+    auto& state =
+        getCameraState();
+
+
+
+    if(
+        !state.enabled.load()
+    )
+    {
+        return;
+    }
+
+
+
+
+    mLastCameraComponent.store(
+        cameraComponent
+    );
+
+
+
+
+    if(
+        state.captureRequested.load()
+    )
+    {
+
+
+        Vec3 currentPosition{};
+
+
+        CameraOrientation currentOrientation{};
+
+
+
+        if(
+            CameraController::
+            instance()
+            .readPosition(
+                cameraComponent,
+                currentPosition
+            )
+        )
+        {
+
+            state.position =
+                currentPosition;
+
+        }
+
+
+
+        if(
+            CameraController::
+            instance()
+            .readOrientation(
+                cameraComponent,
+                currentOrientation
+            )
+        )
+        {
+
+            state.orientation =
+                currentOrientation;
+
+        }
+
+
+
+        state.captureRequested.store(
+            false
+        );
+
+
+        state.captured.store(
+            true
+        );
+
+
+
+        __android_log_print(
+            ANDROID_LOG_INFO,
+            kLogTag,
+            "Camera captured"
+        );
+
+    }
+
+
+
+
+
+    /*
+     * Apply virtual camera position
+     */
+
+    CameraController::
+    instance()
+    .writePosition(
+        cameraComponent,
+        state.position
+    );
+
+
+
+    CameraController::
+    instance()
+    .writeOrientation(
+        cameraComponent,
+        state.orientation
+    );
+
+
+}
 
 
 
@@ -220,131 +321,42 @@ noexcept
 {
 
 
-    if(!gEnabled)
-        return;
-
-
-
-}
-
-
-
-
-
-
-void NativeCameraController::onCameraTransform(
-    void* cameraComponent
-)
-noexcept
-{
-
-
-    if(
-        !gEnabled ||
-        cameraComponent==nullptr
-    )
-    {
-        return;
-    }
-
-
-
-    mLastCameraComponent.store(
-        cameraComponent
-    );
-
-
-
     auto& state =
         getCameraState();
 
 
-
-
-
-    if(!gInitialCaptured)
+    if(
+        !state.enabled.load()
+    )
     {
-
-
-        if(
-            CameraController::
-            instance()
-            .readPosition(
-                cameraComponent,
-                state.position
-            )
-        )
-        {
-
-
-            LOGI(
-                "Camera base %.2f %.2f %.2f",
-                state.position.x,
-                state.position.y,
-                state.position.z
-            );
-
-
-
-            state.captured.store(
-                true
-            );
-
-
-            gInitialCaptured=true;
-
-
-        }
-
-
+        return;
     }
-
-
-
-
-    /*
-        TEST FREECAM OFFSET
-
-        X 0
-        Y naik 2 blok
-        Z mundur 4 blok
-    */
-
-
-    Vec3 offset{};
-
-
-    offset.x=0.0f;
-
-    offset.y=2.0f;
-
-    offset.z=-4.0f;
 
 
 
     if(
-        CameraController::
-        instance()
-        .applyOffset(
-            cameraComponent,
-            offset
-        )
+        !state.captured.load()
     )
     {
-
-
-        LOGI(
-            "Virtual camera applied"
-        );
-
-
+        return;
     }
 
 
 
+    /*
+     * Movement controller
+     *
+     * Akan masuk disini:
+     *
+     * joystick
+     * keyboard
+     * touch drag
+     *
+     */
+
+
 
 }
-
 
 
 
@@ -354,8 +366,7 @@ void NativeCameraController::translate(
     float x,
     float y,
     float z
-)
-noexcept
+) noexcept
 {
 
 
@@ -364,30 +375,23 @@ noexcept
 
 
 
-    state.velocity.x=x;
+    if(
+        !state.enabled.load()
+    )
+    {
+        return;
+    }
 
-    state.velocity.y=y;
 
-    state.velocity.z=z;
 
+    state.position.x += x;
+
+    state.position.y += y;
+
+    state.position.z += z;
 
 
 }
-
-
-
-
-
-
-void NativeCameraController::requestRecapture()
-noexcept
-{
-
-    gInitialCaptured=false;
-
-}
-
-
 
 
 
