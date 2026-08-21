@@ -3,6 +3,7 @@
 
 #include "camera/NativeCameraController.hpp"
 #include "game/GameModeController.hpp"
+#include "core/PlayerFreezeController.hpp"
 
 
 #include <android/log.h>
@@ -63,6 +64,13 @@ void FreecamController::setModuleEnabled(
         NativeCameraController::
         instance()
         .disable();
+
+
+
+        PlayerFreezeController::
+        instance()
+        .disable();
+
 
 
         clearSessionState();
@@ -130,6 +138,12 @@ void FreecamController::setActive(
 
 
 
+        PlayerFreezeController::
+        instance()
+        .disable();
+
+
+
         __android_log_print(
             ANDROID_LOG_INFO,
             kLogTag,
@@ -141,6 +155,8 @@ void FreecamController::setActive(
 
 
 }
+
+
 
 
 
@@ -159,11 +175,30 @@ void FreecamController::onLocalPlayerTick(
 
 
     /*
-     * simpan player
+     * Simpan LocalPlayer
      */
     mCurrentPlayer.store(
         localPlayer
     );
+
+
+
+    /*
+     * Aktifkan freeze player
+     */
+    if(
+        active()
+    )
+    {
+
+        PlayerFreezeController::
+        instance()
+        .enable(
+            localPlayer
+        );
+
+    }
+
 
 
 
@@ -200,6 +235,7 @@ void FreecamController::onLocalPlayerTick(
         return;
 
     }
+
 
 
 
@@ -254,6 +290,7 @@ void FreecamController::onLocalPlayerTick(
 
 
 
+
             if(
                 gameMode.setLocalGameType(
                     localPlayer,
@@ -285,12 +322,10 @@ void FreecamController::onLocalPlayerTick(
 
 
 
+
     /*
      * Refresh spectator
-     *
-     * agar Minecraft tidak overwrite
      */
-
     auto tick =
         mSpectatorRefreshTicks.fetch_add(
             1
@@ -319,13 +354,33 @@ void FreecamController::onLocalPlayerTick(
 
 
 
+
+    /*
+     * Player freeze tick
+     */
+    PlayerFreezeController::
+    instance()
+    .tick(
+        localPlayer
+    );
+
+
+
+
+
+
+    /*
+     * Update virtual camera
+     */
     camera::
     NativeCameraController::
     instance()
     .update();
 
 
+
 }
+
 
 
 
@@ -411,6 +466,7 @@ noexcept
 
 
 
+
 void FreecamController::forceDisable()
 noexcept
 {
@@ -429,6 +485,14 @@ noexcept
     );
 
 
+
+    PlayerFreezeController::
+    instance()
+    .disable();
+
+
+
+
     camera::
     NativeCameraController::
     instance()
@@ -445,9 +509,17 @@ noexcept
 
 
 
+
 void FreecamController::clearSessionState()
 noexcept
 {
+
+
+    PlayerFreezeController::
+    instance()
+    .disable();
+
+
 
 
     mCurrentPlayer.store(
@@ -477,6 +549,7 @@ noexcept
 
 
 
+
 void FreecamController::notePlayerAuthInput()
 noexcept
 {
@@ -491,6 +564,8 @@ noexcept
 
 
 
+
+
 bool FreecamController::moduleEnabled()
 const noexcept
 {
@@ -499,11 +574,17 @@ const noexcept
 
 
 
+
+
+
 bool FreecamController::active()
 const noexcept
 {
     return mRequestedActive.load();
 }
+
+
+
 
 
 
@@ -517,6 +598,9 @@ const noexcept
 
 
 
+
+
+
 bool FreecamController::shouldSuppressPlayerAuthInput()
 const noexcept
 {
@@ -525,6 +609,9 @@ const noexcept
         spectatorApplied();
 
 }
+
+
+
 
 
 
