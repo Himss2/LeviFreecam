@@ -3,6 +3,8 @@
 #include <atomic>
 #include <cstdint>
 
+#include "core/PlayerFreezeController.hpp"
+
 
 namespace levifreecam {
 
