@@ -13,35 +13,57 @@ class FreecamController final {
 
 public:
 
-    static FreecamController& instance();
+    static FreecamController&
+    instance();
 
 
+    /*
+     * Enable / disable module
+     */
     void setModuleEnabled(
         bool enabled
     ) noexcept;
 
 
+
+    /*
+     * CAM button state
+     */
     void setActive(
         bool active
     ) noexcept;
 
 
+
+    /*
+     * Called from LocalPlayer tick hook
+     */
     void onLocalPlayerTick(
         void* localPlayer
     ) noexcept;
 
 
 
+    /*
+     * Restore player/camera state
+     */
     [[nodiscard]]
     bool restoreNow()
     noexcept;
 
 
+
+    /*
+     * Force shutdown
+     */
     void forceDisable()
     noexcept;
 
 
 
+    /*
+     * Packet counter
+     */
     void notePlayerAuthInput()
     noexcept;
 
@@ -52,12 +74,25 @@ public:
     const noexcept;
 
 
+
     [[nodiscard]]
     bool active()
     const noexcept;
 
 
 
+    /*
+     * Native freecam active state
+     */
+    [[nodiscard]]
+    bool cameraActive()
+    const noexcept;
+
+
+
+    /*
+     * Packet suppression state
+     */
     [[nodiscard]]
     bool shouldSuppressPlayerAuthInput()
     const noexcept;
@@ -65,14 +100,17 @@ public:
 
 
     [[nodiscard]]
-    std::uint64_t playerAuthInputSeen()
+    std::uint64_t
+    playerAuthInputSeen()
     const noexcept;
 
 
 
 private:
 
+
     FreecamController() = default;
+
 
 
     void clearSessionState()
@@ -83,12 +121,19 @@ private:
 private:
 
 
+    /*
+     * Module enabled
+     */
     std::atomic_bool
         mModuleEnabled{
             false
         };
 
 
+
+    /*
+     * CAM toggle
+     */
     std::atomic_bool
         mRequestedActive{
             false
@@ -96,6 +141,9 @@ private:
 
 
 
+    /*
+     * Current LocalPlayer
+     */
     std::atomic<void*>
         mCurrentPlayer{
             nullptr
@@ -103,11 +151,13 @@ private:
 
 
 
+    /*
+     * PlayerAuthInput counter
+     */
     std::atomic_uint64_t
         mPlayerAuthInputSeen{
             0
         };
-
 
 };
 
