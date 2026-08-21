@@ -1,248 +1,262 @@
-#include "NativeCameraController.hpp"
+#include "camera/NativeCameraController.hpp"
 
-#include "CameraState.hpp"
-#include "CameraHook.hpp"
+#include "camera/CameraHook.hpp"
 
 #include <android/log.h>
+
 #include <cstdint>
 
 
 #define LOG_TAG "LeviFreecam"
 
-
 #define LOGI(...) \
-__android_log_print(
-ANDROID_LOG_INFO,
-LOG_TAG,
-__VA_ARGS__)
-
+    __android_log_print( \
+        ANDROID_LOG_INFO, \
+        LOG_TAG, \
+        __VA_ARGS__ \
+    )
 
 #define LOGE(...) \
-__android_log_print(
-ANDROID_LOG_ERROR,
-LOG_TAG,
-__VA_ARGS__)
+    __android_log_print( \
+        ANDROID_LOG_ERROR, \
+        LOG_TAG, \
+        __VA_ARGS__ \
+    )
 
 
-
-namespace levifreecam::camera
-{
+namespace levifreecam::camera {
 
 
-namespace
-{
+namespace {
 
 
 CameraState gCameraState;
 
 
-/*
- * Nanti hasil RE
- */
-constexpr uintptr_t kCameraAddress = 0;
-
-
-
-bool gResolved = false;
-
 bool gEnabled = false;
 
 
-
-}
-
+} // namespace
 
 
 
 CameraState& getCameraState() noexcept
 {
-
     return gCameraState;
-
 }
-
 
 
 
 NativeCameraController&
 NativeCameraController::instance() noexcept
 {
+    static NativeCameraController controller;
 
-    static NativeCameraController instance;
-
-    return instance;
-
+    return controller;
 }
-
-
-
-
-
-bool NativeCameraController::resolve() noexcept
-{
-
-    LOGI(
-        "Camera resolve start"
-    );
-
-
-    if(gResolved)
-    {
-        return true;
-    }
-
-
-
-    if(kCameraAddress == 0)
-    {
-
-        LOGE(
-            "Camera address not found"
-        );
-
-
-        return false;
-
-    }
-
-
-
-    gResolved = true;
-
-
-
-    LOGI(
-        "Camera resolved"
-    );
-
-
-    return true;
-
-}
-
-
 
 
 
 bool NativeCameraController::enable() noexcept
 {
-
     LOGI(
-        "Camera enable"
+        "Native camera enable requested"
     );
 
 
-
-    if(gEnabled)
+    if (gEnabled)
     {
         return true;
     }
 
 
-
-    if(!resolve())
+    if (
+        !installCameraHook()
+    )
     {
-
         LOGE(
-            "Resolve failed"
+            "Camera hook installation failed"
         );
 
-
         return false;
-
     }
 
 
-
-    if(!installCameraHook())
-    {
-
-        LOGE(
-            "Hook failed"
-        );
-
-
-        return false;
-
-    }
-
-
-
-    gCameraState.enabled = true;
+    gCameraState.enabled.store(
+        true,
+        std::memory_order_release
+    );
 
 
     gEnabled = true;
 
 
-
     LOGI(
-        "Camera enabled"
+        "Native camera enabled"
     );
 
 
-
     return true;
-
 }
-
-
 
 
 
 bool NativeCameraController::disable() noexcept
 {
-
     LOGI(
-        "Camera disable"
+        "Native camera disable"
     );
 
 
+    if (!gEnabled)
+    {
+        return true;
+    }
 
-    gCameraState.enabled = false;
+
+    removeCameraHook();
+
+
+    gCameraState.enabled.store(
+        false,
+        std::memory_order_release
+    );
+
+
+    gCameraState.captureRequested.store(
+        false,
+        std::memory_order_release
+    );
+
+
+    gCameraState.captured.store(
+        false,
+        std::memory_order_release
+    );
+
+
+    mLastCameraComponent.store(
+        nullptr,
+        std::memory_order_release
+    );
 
 
     gEnabled = false;
 
 
-
     return true;
-
 }
 
 
 
-
-
-bool NativeCameraController::isEnabled() const noexcept
+bool NativeCameraController::isEnabled()
+const noexcept
 {
-
     return gEnabled;
-
 }
 
 
 
-
-
-void NativeCameraController::update() noexcept
+bool NativeCameraController::cameraCaptured()
+const noexcept
 {
+    return
+        gCameraState.captured.load(
+            std::memory_order_acquire
+        );
+}
 
-    if(!gEnabled)
+
+
+void NativeCameraController::update()
+noexcept
+{
+    if (!gEnabled)
     {
         return;
     }
 
 
+    /*
+     * Runtime movement update.
+     *
+     * Nanti masuk:
+     * - keyboard input
+     * - joystick
+     * - touch drag
+     */
+}
+
+
+
+void NativeCameraController::onCameraTransform(
+    void* cameraComponent
+)
+noexcept
+{
+
+    if (
+        !gEnabled ||
+        cameraComponent == nullptr
+    )
+    {
+        return;
+    }
+
+
+    mLastCameraComponent.store(
+        cameraComponent,
+        std::memory_order_release
+    );
+
+
+    gCameraState.captured.store(
+        true,
+        std::memory_order_release
+    );
+
 
     /*
-       Runtime update nanti
-       masuk sini
-    */
+     * Camera transform override
+     *
+     * belum aktif sampai
+     * movement controller selesai.
+     */
+}
 
+
+
+void NativeCameraController::translate(
+    float x,
+    float y,
+    float z
+)
+noexcept
+{
+
+    auto& state =
+        getCameraState();
+
+
+    state.position.x += x;
+    state.position.y += y;
+    state.position.z += z;
 
 }
 
 
 
+void NativeCameraController::requestRecapture()
+noexcept
+{
+
+    gCameraState.captureRequested.store(
+        true,
+        std::memory_order_release
+    );
 
 }
+
+
+
+} // namespace levifreecam::camera
