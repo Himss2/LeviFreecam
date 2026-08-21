@@ -2,13 +2,14 @@
 
 
 #include "camera/CameraController.hpp"
-#include "memory/CameraResolver.hpp"
 
 
 #include <android/log.h>
 
 
+
 namespace levifreecam::camera {
+
 
 
 namespace {
@@ -18,11 +19,14 @@ constexpr char kLogTag[] =
     "Levi Freecam";
 
 
+
 }
 
 
+
 NativeCameraController&
-NativeCameraController::instance() noexcept
+NativeCameraController::instance()
+noexcept
 {
 
     static NativeCameraController controller;
@@ -35,16 +39,22 @@ NativeCameraController::instance() noexcept
 
 
 
-bool NativeCameraController::enable() noexcept
+bool NativeCameraController::enable()
+noexcept
 {
 
     auto& state =
         getCameraState();
 
 
-    state.enabled.store(
-        true
-    );
+
+    if(
+        state.enabled.load()
+    )
+    {
+        return true;
+    }
+
 
 
     state.captureRequested.store(
@@ -52,11 +62,19 @@ bool NativeCameraController::enable() noexcept
     );
 
 
+
+    state.enabled.store(
+        true
+    );
+
+
+
     __android_log_print(
         ANDROID_LOG_INFO,
         kLogTag,
         "Native camera enabled"
     );
+
 
 
     return true;
@@ -67,15 +85,19 @@ bool NativeCameraController::enable() noexcept
 
 
 
-bool NativeCameraController::disable() noexcept
+
+bool NativeCameraController::disable()
+noexcept
 {
 
     auto& state =
         getCameraState();
 
 
+
     void* camera =
         mLastCameraComponent.load();
+
 
 
     if(
@@ -83,28 +105,39 @@ bool NativeCameraController::disable() noexcept
     )
     {
 
+
+        /*
+         * Restore kamera asli Minecraft
+         */
+
         CameraController::
         instance()
-        .writePosition(
+        .setTransform(
+
             camera,
-            state.position
+
+            state.originalPosition,
+
+            state.originalOrientation
+
         );
 
 
-        CameraController::
-        instance()
-        .writeOrientation(
-            camera,
-            state.orientation
+        __android_log_print(
+            ANDROID_LOG_INFO,
+            kLogTag,
+            "Camera restored"
         );
 
     }
 
 
 
+
     mLastCameraComponent.store(
         nullptr
     );
+
 
 
     state.enabled.store(
@@ -130,9 +163,12 @@ bool NativeCameraController::disable() noexcept
     );
 
 
+
     return true;
 
 }
+
+
 
 
 
@@ -152,6 +188,7 @@ const noexcept
 
 
 
+
 bool NativeCameraController::cameraCaptured()
 const noexcept
 {
@@ -161,6 +198,8 @@ const noexcept
         .load();
 
 }
+
+
 
 
 
@@ -182,11 +221,14 @@ noexcept
 
 
 
+
+
+
 void NativeCameraController::onCameraTransform(
     void* cameraComponent
-) noexcept
+)
+noexcept
 {
-
 
     if(
         cameraComponent == nullptr
@@ -202,12 +244,16 @@ void NativeCameraController::onCameraTransform(
 
 
 
+
+
     if(
         !state.enabled.load()
     )
     {
         return;
     }
+
+
 
 
 
@@ -219,50 +265,89 @@ void NativeCameraController::onCameraTransform(
 
 
 
+
+
+
+    /*
+     * Capture pertama kali
+     *
+     * Simpan transform kamera asli
+     */
+
     if(
         state.captureRequested.load()
     )
     {
 
 
-        Vec3 currentPosition{};
+        Vec3 position{};
+
+        CameraOrientation orientation{};
 
 
-        CameraOrientation currentOrientation{};
 
 
-
-        if(
+        bool positionOK =
             CameraController::
             instance()
             .readPosition(
+
                 cameraComponent,
-                currentPosition
-            )
-        )
-        {
 
-            state.position =
-                currentPosition;
+                position
 
-        }
+            );
+
+
+
+        bool rotationOK =
+            CameraController::
+            instance()
+            .readOrientation(
+
+                cameraComponent,
+
+                orientation
+
+            );
+
 
 
 
         if(
-            CameraController::
-            instance()
-            .readOrientation(
-                cameraComponent,
-                currentOrientation
-            )
+            positionOK
         )
         {
 
-            state.orientation =
-                currentOrientation;
+            state.originalPosition =
+                position;
+
+
+            state.position =
+                position;
 
         }
+
+
+
+
+
+        if(
+            rotationOK
+        )
+        {
+
+            state.originalOrientation =
+                orientation;
+
+
+            state.orientation =
+                orientation;
+
+        }
+
+
+
 
 
 
@@ -283,34 +368,41 @@ void NativeCameraController::onCameraTransform(
             "Camera captured"
         );
 
+
     }
 
 
 
 
 
+
+
+
     /*
-     * Apply virtual camera position
+     * Jika freecam aktif
+     *
+     * Override kamera Minecraft
      */
 
     CameraController::
     instance()
-    .writePosition(
+    .setTransform(
+
         cameraComponent,
-        state.position
-    );
 
+        state.position,
 
-
-    CameraController::
-    instance()
-    .writeOrientation(
-        cameraComponent,
         state.orientation
+
     );
+
 
 
 }
+
+
+
+
 
 
 
@@ -320,9 +412,10 @@ void NativeCameraController::update()
 noexcept
 {
 
-
     auto& state =
         getCameraState();
+
+
 
 
     if(
@@ -331,6 +424,7 @@ noexcept
     {
         return;
     }
+
 
 
 
@@ -343,14 +437,16 @@ noexcept
 
 
 
+
     /*
-     * Movement controller
      *
-     * Akan masuk disini:
+     * Movement integration point
+     *
+     * Nanti masuk:
      *
      * joystick
-     * keyboard
      * touch drag
+     * keyboard
      *
      */
 
@@ -362,13 +458,17 @@ noexcept
 
 
 
+
+
+
+
 void NativeCameraController::translate(
     float x,
     float y,
     float z
-) noexcept
+)
+noexcept
 {
-
 
     auto& state =
         getCameraState();
@@ -384,6 +484,8 @@ void NativeCameraController::translate(
 
 
 
+
+
     state.position.x += x;
 
     state.position.y += y;
@@ -391,7 +493,11 @@ void NativeCameraController::translate(
     state.position.z += z;
 
 
+
 }
+
+
+
 
 
 
