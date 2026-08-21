@@ -3,7 +3,7 @@
 
 #include "core/FreecamController.hpp"
 
-#include "camera/CameraSystemHook.hpp"
+#include "camera/CameraHook.hpp"
 
 
 #include <pl/Mod.hpp>
@@ -154,7 +154,7 @@ bool FreecamMod::enable()
      * Install native camera hook
      */
     if(
-        !camera::installCameraSystemHook()
+        !camera::installCameraHook()
     )
     {
 
