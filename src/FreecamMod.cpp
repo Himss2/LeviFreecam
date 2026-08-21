@@ -1,7 +1,6 @@
 #include "FreecamMod.hpp"
 
 #include "core/FreecamController.hpp"
-#include "game/GameModeController.hpp"
 #include "camera/CameraSystemHook.hpp"
 
 #include <pl/Mod.hpp>
@@ -43,19 +42,23 @@ FreecamMod::getSelf()
 
 
 
+
+
 bool FreecamMod::load()
 {
 
     getSelf().
         getLogger().
         info(
-            "Loading Levi Freecam v0.6.0"
+            "Loading Levi Freecam v0.6.1 (No Spectator)"
         );
 
 
     return true;
 
 }
+
+
 
 
 
@@ -71,62 +74,23 @@ bool FreecamMod::enable()
 
 
 
-    auto& gameMode =
-        game::GameModeController::
-            instance();
-
-
-
-
-
-    /*
-     * =====================================================
-     * RESOLVE GAMETYPE
-     * =====================================================
-     */
-
-    if(
-        !gameMode.resolve()
-    )
-    {
-
-        self.getLogger().
-            error(
-                "Failed to resolve GameType."
-            );
-
-
-        return false;
-
-    }
-
-
-
-    self.getLogger().
-        info(
-            "GameType getter resolved at 0x{:x}",
-            gameMode.getterAddress()
-        );
-
-
-
-    self.getLogger().
-        info(
-            "GameType setter resolved at 0x{:x}",
-            gameMode.setterAddress()
-        );
-
-
-
-
-
-
-
     /*
      * =====================================================
      * PLAYER TICK HOOK
      * =====================================================
+     *
+     * Tidak ada lagi GameMode resolve.
+     *
+     * Freecam sekarang berjalan:
+     *
+     * Camera takeover
+     * +
+     * Player freeze
+     * +
+     * Packet suppression
+     *
      */
+
 
     if(
         !mPlayerHook.install()
@@ -138,9 +102,6 @@ bool FreecamMod::enable()
             error(
                 "Failed install LocalPlayer hook."
             );
-
-
-        gameMode.clear();
 
 
         return false;
@@ -162,11 +123,13 @@ bool FreecamMod::enable()
 
 
 
+
     /*
      * =====================================================
      * PACKET HOOK
      * =====================================================
      */
+
 
     if(
         !mPacketHook.install()
@@ -182,9 +145,6 @@ bool FreecamMod::enable()
 
 
         mPlayerHook.uninstall();
-
-
-        gameMode.clear();
 
 
 
@@ -208,11 +168,13 @@ bool FreecamMod::enable()
 
 
 
+
     /*
      * =====================================================
      * CAMERA HOOK
      * =====================================================
      */
+
 
     if(
         !camera::installCameraSystemHook()
@@ -231,9 +193,6 @@ bool FreecamMod::enable()
 
 
         mPlayerHook.uninstall();
-
-
-        gameMode.clear();
 
 
 
@@ -325,9 +284,6 @@ bool FreecamMod::enable()
         mPlayerHook.uninstall();
 
 
-        gameMode.clear();
-
-
 
         return false;
 
@@ -340,7 +296,7 @@ bool FreecamMod::enable()
 
     self.getLogger().
         info(
-            "Levi Freecam ready."
+            "Levi Freecam ready (Spectator removed)."
         );
 
 
@@ -362,8 +318,7 @@ bool FreecamMod::disable()
 
 
     /*
-     * Matikan semua state dahulu
-     * supaya tidak ada update tick
+     * Matikan state dahulu
      */
 
     restoreAndReset();
@@ -384,12 +339,6 @@ bool FreecamMod::disable()
 
     mPlayerHook.uninstall();
 
-
-
-
-    game::GameModeController::
-        instance().
-        clear();
 
 
 
@@ -436,12 +385,6 @@ bool FreecamMod::unload()
 
     mPlayerHook.uninstall();
 
-
-
-
-    game::GameModeController::
-        instance().
-        clear();
 
 
 
@@ -552,41 +495,26 @@ void FreecamMod::restoreAndReset()
 
 
     auto& controller =
-        FreecamController::
-            instance();
+        FreecamController::instance();
 
 
 
     /*
-     * Restore spectator -> survival/creative
+     * Tidak ada restore GameType.
+     *
+     * Spectator sudah diputus.
+     *
+     * Restore hanya:
+     *
+     * - camera
+     * - player freeze
+     * - internal state
      */
 
-    if(
-        controller.spectatorApplied()
-    )
-    {
 
-        if(
-            !controller.restoreNow()
-        )
-        {
-
-            getSelf().
-                getLogger().
-                warn(
-                    "Failed restoring GameType."
-                );
-
-        }
-
-    }
+    controller.restoreNow();
 
 
-
-
-    /*
-     * Bersihkan seluruh state
-     */
 
     controller.forceDisable();
 
