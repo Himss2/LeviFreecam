@@ -2,25 +2,18 @@
 
 
 #include "camera/NativeCameraController.hpp"
-#include "game/GameModeController.hpp"
-#include "core/PlayerFreezeController.hpp"
 
 
 #include <android/log.h>
 
 
-
 namespace levifreecam {
-
 
 
 namespace {
 
-
 constexpr char kLogTag[] =
     "Levi Freecam";
-
-
 
 }
 
@@ -29,19 +22,17 @@ constexpr char kLogTag[] =
 FreecamController&
 FreecamController::instance()
 {
-
     static FreecamController controller;
 
     return controller;
-
 }
-
 
 
 
 void FreecamController::setModuleEnabled(
     bool enabled
-) noexcept
+)
+noexcept
 {
 
     mModuleEnabled.store(
@@ -81,11 +72,10 @@ void FreecamController::setModuleEnabled(
 
 
 
-
-
 void FreecamController::setActive(
     bool active
-) noexcept
+)
+noexcept
 {
 
 
@@ -119,7 +109,7 @@ void FreecamController::setActive(
         __android_log_print(
             ANDROID_LOG_INFO,
             kLogTag,
-            "Freecam requested ON"
+            "Freecam ON"
         );
 
 
@@ -129,6 +119,7 @@ void FreecamController::setActive(
 
 
         restoreNow();
+
 
 
         camera::
@@ -147,9 +138,8 @@ void FreecamController::setActive(
         __android_log_print(
             ANDROID_LOG_INFO,
             kLogTag,
-            "Freecam requested OFF"
+            "Freecam OFF"
         );
-
 
     }
 
@@ -159,46 +149,21 @@ void FreecamController::setActive(
 
 
 
-
-
-
-
 void FreecamController::onLocalPlayerTick(
     void* localPlayer
-) noexcept
+)
+noexcept
 {
 
 
-    if(localPlayer==nullptr)
+    if(localPlayer == nullptr)
         return;
 
 
 
-    /*
-     * Simpan LocalPlayer
-     */
     mCurrentPlayer.store(
         localPlayer
     );
-
-
-
-    /*
-     * Aktifkan freeze player
-     */
-    if(
-        active()
-    )
-    {
-
-        PlayerFreezeController::
-        instance()
-        .enable(
-            localPlayer
-        );
-
-    }
-
 
 
 
@@ -211,153 +176,23 @@ void FreecamController::onLocalPlayerTick(
 
 
 
-    auto& gameMode =
-        game::
-        GameModeController::
-        instance();
-
-
-
     /*
-     * Resolve safety
-     */
-    if(
-        !gameMode.available()
-    )
-    {
-
-        __android_log_print(
-            ANDROID_LOG_ERROR,
-            kLogTag,
-            "GameMode unavailable"
-        );
-
-        return;
-
-    }
-
-
-
-
-
-    /*
-     * Apply spectator sekali
+     * FREECAM WITHOUT SPECTATOR
+     *
+     * Player tetap game mode asli.
+     *
+     * Kita hanya freeze entity.
      */
 
-    if(
-        !mSpectatorApplied.load()
-    )
-    {
 
-
-        auto current =
-            gameMode.getLocalGameType(
-                localPlayer
-            );
+    PlayerFreezeController::
+    instance()
+    .enable(
+        localPlayer
+    );
 
 
 
-        if(
-            current.has_value()
-        )
-        {
-
-
-            if(
-                !mOriginalGameTypeValid.load()
-            )
-            {
-
-
-                mOriginalGameType.store(
-                    current.value()
-                );
-
-
-                mOriginalGameTypeValid.store(
-                    true
-                );
-
-
-                __android_log_print(
-                    ANDROID_LOG_INFO,
-                    kLogTag,
-                    "Saved GameType %d",
-                    current.value()
-                );
-
-            }
-
-
-
-
-            if(
-                gameMode.setLocalGameType(
-                    localPlayer,
-                    game::GameType::Spectator
-                )
-            )
-            {
-
-                mSpectatorApplied.store(
-                    true
-                );
-
-
-                __android_log_print(
-                    ANDROID_LOG_INFO,
-                    kLogTag,
-                    "Spectator mode applied"
-                );
-
-
-            }
-
-
-        }
-
-
-    }
-
-
-
-
-
-    /*
-     * Refresh spectator
-     */
-    auto tick =
-        mSpectatorRefreshTicks.fetch_add(
-            1
-        );
-
-
-
-    if(
-        tick > 40
-    )
-    {
-
-        gameMode.setLocalGameType(
-            localPlayer,
-            game::GameType::Spectator
-        );
-
-
-        mSpectatorRefreshTicks.store(
-            0
-        );
-
-    }
-
-
-
-
-
-
-    /*
-     * Player freeze tick
-     */
     PlayerFreezeController::
     instance()
     .tick(
@@ -366,25 +201,13 @@ void FreecamController::onLocalPlayerTick(
 
 
 
-
-
-
-    /*
-     * Update virtual camera
-     */
     camera::
     NativeCameraController::
     instance()
     .update();
 
 
-
 }
-
-
-
-
-
 
 
 
@@ -393,76 +216,16 @@ bool FreecamController::restoreNow()
 noexcept
 {
 
-
-    auto player =
-        mCurrentPlayer.load();
-
-
-
-    if(
-        player==nullptr
-    )
-    {
-        return false;
-    }
+    /*
+     * Tidak ada restore gamemode.
+     *
+     * Spectator sudah diputus.
+     */
 
 
-
-    if(
-        !mOriginalGameTypeValid.load()
-    )
-    {
-        return false;
-    }
-
-
-
-    auto& gameMode =
-        game::
-        GameModeController::
-        instance();
-
-
-
-    bool result =
-        gameMode.setLocalGameType(
-            player,
-            mOriginalGameType.load()
-        );
-
-
-
-    if(result)
-    {
-
-
-        __android_log_print(
-            ANDROID_LOG_INFO,
-            kLogTag,
-            "GameType restored"
-        );
-
-
-        mSpectatorApplied.store(
-            false
-        );
-
-
-        mOriginalGameTypeValid.store(
-            false
-        );
-
-
-    }
-
-
-
-    return result;
+    return true;
 
 }
-
-
-
 
 
 
@@ -470,10 +233,6 @@ noexcept
 void FreecamController::forceDisable()
 noexcept
 {
-
-    restoreNow();
-
-
 
     mModuleEnabled.store(
         false
@@ -492,7 +251,6 @@ noexcept
 
 
 
-
     camera::
     NativeCameraController::
     instance()
@@ -507,19 +265,9 @@ noexcept
 
 
 
-
-
-
 void FreecamController::clearSessionState()
 noexcept
 {
-
-
-    PlayerFreezeController::
-    instance()
-    .disable();
-
-
 
 
     mCurrentPlayer.store(
@@ -527,25 +275,7 @@ noexcept
     );
 
 
-    mSpectatorApplied.store(
-        false
-    );
-
-
-    mOriginalGameTypeValid.store(
-        false
-    );
-
-
-    mSpectatorRefreshTicks.store(
-        0
-    );
-
-
 }
-
-
-
 
 
 
@@ -563,16 +293,13 @@ noexcept
 
 
 
-
-
-
 bool FreecamController::moduleEnabled()
 const noexcept
 {
+
     return mModuleEnabled.load();
+
 }
-
-
 
 
 
@@ -580,23 +307,10 @@ const noexcept
 bool FreecamController::active()
 const noexcept
 {
+
     return mRequestedActive.load();
+
 }
-
-
-
-
-
-
-
-bool FreecamController::spectatorApplied()
-const noexcept
-{
-    return mSpectatorApplied.load();
-}
-
-
-
 
 
 
@@ -605,13 +319,20 @@ bool FreecamController::shouldSuppressPlayerAuthInput()
 const noexcept
 {
 
-    return
-        spectatorApplied();
+    /*
+     * Sebelumnya:
+     *
+     * return spectatorApplied()
+     *
+     * Sekarang:
+     *
+     * Freecam aktif langsung block input.
+     */
+
+
+    return active();
 
 }
-
-
-
 
 
 
@@ -621,11 +342,9 @@ FreecamController::playerAuthInputSeen()
 const noexcept
 {
 
-    return
-        mPlayerAuthInputSeen.load();
+    return mPlayerAuthInputSeen.load();
 
 }
-
 
 
 }
