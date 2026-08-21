@@ -53,6 +53,34 @@ public:
 
 
 
+    /*
+     * Copy seluruh transform kamera
+     *
+     * Dipakai untuk:
+     * - backup camera asli
+     * - restore camera setelah freecam off
+     */
+    bool copyTransform(
+        void* destination,
+        const void* source
+    ) const noexcept;
+
+
+
+    /*
+     * Set posisi dan rotasi kamera sekaligus
+     *
+     * Dipakai oleh NativeCameraController
+     * saat freecam aktif
+     */
+    bool setTransform(
+        void* cameraComponent,
+        const Vec3& position,
+        const CameraOrientation& orientation
+    ) const noexcept;
+
+
+
     static constexpr std::size_t
         kOrientationOffset =
             0x28;
