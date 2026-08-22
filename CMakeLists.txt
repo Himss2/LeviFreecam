@@ -175,6 +175,17 @@ add_library(
 
 
     #
+    # Memory Resolver
+    #
+
+    src/memory/CameraResolver.cpp
+
+
+
+
+
+
+    #
     # Camera System
     #
 
@@ -193,13 +204,6 @@ add_library(
 
 
 
-
-
-    #
-    # Memory Resolver
-    #
-
-    src/memory/CameraResolver.cpp
 
 
     #
