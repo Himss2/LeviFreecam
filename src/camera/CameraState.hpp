@@ -34,7 +34,6 @@ struct CameraOrientation final {
 struct CameraState final {
 
 
-
     /*
      * Native camera state.
      */
@@ -66,6 +65,22 @@ struct CameraState final {
 
 
 
+    /*
+     * Camera detached dari LocalPlayer.
+     *
+     * Saat true:
+     *
+     * - camera tidak mengikuti player asli
+     * - transform camera dikontrol freecam
+     * - vanilla camera update ditahan
+     */
+    std::atomic_bool
+        detached{
+            false
+        };
+
+
+
 
     /*
      * Posisi virtual camera.
@@ -73,7 +88,6 @@ struct CameraState final {
      * Posisi yang dikontrol oleh Freecam.
      */
     Vec3 position{};
-
 
 
 
@@ -142,9 +156,12 @@ struct CameraState final {
     };
 
 
+
     float pitch{
         0.0f
     };
+
+
 
 
 
