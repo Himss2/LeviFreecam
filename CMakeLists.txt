@@ -64,6 +64,10 @@ add_library(
     src/camera/CameraSystemHook.cpp
 
 
+    # First Person Hook
+    src/render/FirstPersonHook.cpp
+
+
     # Legacy GameMode
     # Tetap compile dulu untuk rollback aman
     src/game/GameModeController.cpp
