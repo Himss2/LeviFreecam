@@ -1,11 +1,15 @@
 #include "hooks/PacketHook.hpp"
 
+
 #include "core/FreecamController.hpp"
+
 
 #include <android/log.h>
 
+
 #include <pl/memory/Hook.hpp>
 #include <pl/memory/Signature.hpp>
+
 
 #include <atomic>
 #include <cstddef>
@@ -13,14 +17,18 @@
 #include <string_view>
 
 
+
 namespace levifreecam::hooks {
+
 
 
 namespace {
 
 
+
 constexpr char kLogTag[] =
     "Levi Freecam";
+
 
 
 constexpr std::string_view
@@ -29,6 +37,11 @@ kMinecraftLibrary =
 
 
 
+/*
+ *
+ * LoopbackPacketSender::sendToServer
+ *
+ */
 constexpr std::string_view
 kSendToServerSignature =
 
@@ -46,9 +59,48 @@ kSendToServerSignature =
 
 
 
+
+/*
+ *
+ * Packet IDs
+ *
+ */
+
+
+/*
+ * PlayerAuthInput
+ *
+ * Tetap dilewatkan.
+ * Kamera membutuhkan update input.
+ */
 constexpr std::uint32_t
 kPlayerAuthInputPacketId =
     144;
+
+
+
+/*
+ * Block breaking,
+ * placing,
+ * item interaction
+ *
+ */
+constexpr std::uint32_t
+kInventoryTransactionPacketId =
+    30;
+
+
+
+/*
+ * StartDestroyBlock,
+ * StopDestroyBlock,
+ * ReleaseItem
+ *
+ */
+constexpr std::uint32_t
+kPlayerActionPacketId =
+    79;
+
 
 
 
@@ -61,10 +113,12 @@ using SendToServerFn =
 
 
 
+
 using PacketGetIdFn =
     std::uint32_t (*)(
         const void* packet
     );
+
 
 
 
@@ -84,8 +138,20 @@ gHookTarget =
 
 std::atomic_bool
 gLoggedPlayerAuthInput{
+
     false
+
 };
+
+
+
+std::atomic_bool
+gLoggedBlockedAction{
+
+    false
+
+};
+
 
 
 
@@ -97,19 +163,17 @@ kPacketGetIdVtableIndex =
 
 
 
+
+
+
 std::uint32_t getPacketId(
-
     const void* packet
-
 )
 noexcept
-
 {
 
     if(packet == nullptr)
-    {
         return 0;
-    }
 
 
 
@@ -117,20 +181,14 @@ noexcept
 
         *reinterpret_cast<void***>(
 
-            const_cast<void*>(
-
-                packet
-
-            )
+            const_cast<void*>(packet)
 
         );
 
 
 
     if(vtable == nullptr)
-    {
         return 0;
-    }
 
 
 
@@ -143,15 +201,15 @@ noexcept
 
 
     if(entry == nullptr)
-    {
         return 0;
-    }
 
 
 
     auto fn =
 
-        reinterpret_cast<PacketGetIdFn>(
+        reinterpret_cast<
+            PacketGetIdFn
+        >(
 
             entry
 
@@ -167,6 +225,55 @@ noexcept
 
 
 
+
+
+
+bool shouldBlockPacket(
+    std::uint32_t packetId
+)
+{
+
+    auto& controller =
+
+        FreecamController::
+        instance();
+
+
+
+    if(
+        !controller.active()
+    )
+    {
+        return false;
+    }
+
+
+
+    switch(packetId)
+    {
+
+        case kInventoryTransactionPacketId:
+
+        case kPlayerActionPacketId:
+
+            return true;
+
+
+        default:
+
+            return false;
+
+    }
+
+}
+
+
+
+
+
+
+
+
 void sendToServerDetour(
 
     void* sender,
@@ -174,10 +281,11 @@ void sendToServerDetour(
     void* packet
 
 )
-
 {
 
+
     auto original =
+
         gOriginalSendToServer;
 
 
@@ -186,6 +294,9 @@ void sendToServerDetour(
     {
         return;
     }
+
+
+
 
 
 
@@ -199,22 +310,33 @@ void sendToServerDetour(
 
 
 
+
+
+
+
+    /*
+     *
+     * Track PlayerAuthInput
+     *
+     */
+
     if(
         packetId ==
         kPlayerAuthInputPacketId
     )
-
     {
+
 
         auto& controller =
 
             FreecamController::
-
             instance();
 
 
 
-        controller.notePlayerAuthInput();
+        controller.
+        notePlayerAuthInput();
+
 
 
 
@@ -233,8 +355,8 @@ void sendToServerDetour(
 
             )
         )
-
         {
+
 
             __android_log_print(
 
@@ -248,30 +370,76 @@ void sendToServerDetour(
 
             );
 
-        }
-
-
-
-        /*
-         *
-         * Future input isolation layer.
-         *
-         */
-
-        if(
-
-            controller
-            .shouldSuppressPlayerAuthInput()
-
-        )
-
-        {
-
-            return;
 
         }
+
 
     }
+
+
+
+
+
+
+
+
+    /*
+     *
+     * Block interaction
+     *
+     */
+
+    if(
+        shouldBlockPacket(
+            packetId
+        )
+    )
+    {
+
+
+        bool expected =
+            false;
+
+
+
+        if(
+            gLoggedBlockedAction
+            .compare_exchange_strong(
+
+                expected,
+
+                true
+
+            )
+        )
+        {
+
+
+            __android_log_print(
+
+                ANDROID_LOG_INFO,
+
+                kLogTag,
+
+                "Blocked interaction packet id=%u",
+
+                packetId
+
+            );
+
+
+        }
+
+
+
+        return;
+
+
+    }
+
+
+
+
 
 
 
@@ -283,11 +451,12 @@ void sendToServerDetour(
 
     );
 
+
 }
 
 
 
-} // anonymous namespace
+
 
 
 
@@ -306,6 +475,10 @@ bool PacketHook::install()
 
 
 
+
+
+
+
     const auto targetAddress =
 
 
@@ -321,10 +494,15 @@ bool PacketHook::install()
 
 
 
+
+
+
+
     if(
         targetAddress == 0
     )
     {
+
 
         __android_log_print(
 
@@ -344,6 +522,9 @@ bool PacketHook::install()
 
 
 
+
+
+
     void* original =
         nullptr;
 
@@ -359,6 +540,8 @@ bool PacketHook::install()
 
 
 
+
+
     void* detour =
 
         reinterpret_cast<void*>(
@@ -366,6 +549,10 @@ bool PacketHook::install()
             &sendToServerDetour
 
         );
+
+
+
+
 
 
 
@@ -388,6 +575,10 @@ bool PacketHook::install()
 
 
 
+
+
+
+
     if(
 
         result != 0 ||
@@ -395,8 +586,8 @@ bool PacketHook::install()
         original == nullptr
 
     )
-
     {
+
 
         __android_log_print(
 
@@ -417,14 +608,24 @@ bool PacketHook::install()
 
 
 
+
+
+
+
     gOriginalSendToServer =
 
 
-        reinterpret_cast<SendToServerFn>(
+        reinterpret_cast<
+            SendToServerFn
+        >(
 
             original
 
         );
+
+
+
+
 
 
 
@@ -434,11 +635,18 @@ bool PacketHook::install()
 
 
 
+
+
     gLoggedPlayerAuthInput.store(
-
         false
-
     );
+
+
+    gLoggedBlockedAction.store(
+        false
+    );
+
+
 
 
 
@@ -454,6 +662,10 @@ bool PacketHook::install()
 
 
 
+
+
+
+
     __android_log_print(
 
         ANDROID_LOG_INFO,
@@ -462,15 +674,21 @@ bool PacketHook::install()
 
         "Packet hook installed 0x%lx",
 
-        static_cast<unsigned long>(targetAddress)
+        targetAddress
 
     );
 
 
 
+
+
     return true;
 
+
 }
+
+
+
 
 
 
@@ -482,6 +700,7 @@ noexcept
 
 {
 
+
     if(
         !mInstalled
     )
@@ -491,11 +710,14 @@ noexcept
 
 
 
+
+
+
     if(
         gHookTarget != nullptr
     )
-
     {
+
 
         pl::memory::unhook(
 
@@ -513,6 +735,9 @@ noexcept
 
 
 
+
+
+
     gOriginalSendToServer =
         nullptr;
 
@@ -523,10 +748,14 @@ noexcept
 
 
 
+
     gLoggedPlayerAuthInput.store(
-
         false
+    );
 
+
+    gLoggedBlockedAction.store(
+        false
     );
 
 
@@ -539,7 +768,10 @@ noexcept
     mInstalled =
         false;
 
+
 }
+
+
 
 
 
@@ -559,6 +791,8 @@ const noexcept
 
 
 
+
+
 std::uintptr_t
 
 PacketHook::targetAddress()
@@ -570,6 +804,7 @@ const noexcept
     return mTargetAddress;
 
 }
+
 
 
 
