@@ -1,13 +1,13 @@
 #pragma once
 
-#include <atomic>
+#include <cstdint>
 
 
 namespace levifreecam::render {
 
 
-class FirstPersonHook final
-{
+class FirstPersonHook final {
+
 
 public:
 
@@ -28,6 +28,11 @@ public:
 
 
 
+    bool installed()
+    const noexcept;
+
+
+
     void setEnabled(
         bool enabled
     )
@@ -35,28 +40,33 @@ public:
 
 
 
-    [[nodiscard]]
-    bool enabled()
+    bool isEnabled()
     const noexcept;
+
+
+
+    static std::uintptr_t
+    targetAddress()
+    noexcept;
 
 
 
 private:
 
 
-    FirstPersonHook() = default;
+    FirstPersonHook()
+        = default;
 
 
-    std::atomic_bool
-        mEnabled{
-            false
-        };
+
+    bool mInstalled{
+        false
+    };
 
 
-    std::atomic_bool
-        mInstalled{
-            false
-        };
+    bool mEnabled{
+        false
+    };
 
 
 };
