@@ -5,6 +5,7 @@
 
 
 #include "camera/CameraHook.hpp"
+#include "camera/CameraSystemHook.hpp"
 
 
 
@@ -261,6 +262,69 @@ bool FreecamMod::enable()
 
     /*
      *
+     * Camera System Hook
+     *
+     */
+
+
+    if(
+        !camera::installCameraSystemHook()
+    )
+
+    {
+
+
+        self.getLogger()
+        .error(
+
+            "CameraSystem hook failed"
+
+        );
+
+
+
+        camera::removeCameraHook();
+
+
+
+        mPacketHook.uninstall();
+
+
+
+        mPlayerHook.uninstall();
+
+
+
+        return false;
+
+
+    }
+
+
+
+
+
+
+
+    self.getLogger()
+    .info(
+
+        "CameraSystem hook installed 0x{:x}",
+
+        camera::cameraSystemAddress()
+
+    );
+
+
+
+
+
+
+
+
+
+    /*
+     *
      * Register Mod Menu
      *
      */
@@ -321,6 +385,10 @@ bool FreecamMod::enable()
 
 
 
+        camera::removeCameraSystemHook();
+
+
+
         camera::removeCameraHook();
 
 
@@ -376,6 +444,12 @@ bool FreecamMod::disable()
 
 
     restoreAndReset();
+
+
+
+
+
+    camera::removeCameraSystemHook();
 
 
 
@@ -440,6 +514,13 @@ bool FreecamMod::unload()
 
 
     restoreAndReset();
+
+
+
+
+
+
+    camera::removeCameraSystemHook();
 
 
 
