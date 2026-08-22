@@ -2,9 +2,7 @@
 
 #include <atomic>
 
-
 namespace levifreecam::camera {
-
 
 struct Vec3 final {
 
@@ -29,10 +27,7 @@ struct CameraOrientation final {
 
 
 
-
-
 struct CameraState final {
-
 
     /*
      * Native camera state.
@@ -64,7 +59,6 @@ struct CameraState final {
 
 
 
-
     /*
      * Camera detached dari LocalPlayer.
      *
@@ -81,14 +75,12 @@ struct CameraState final {
 
 
 
-
     /*
      * Posisi virtual camera.
      *
      * Posisi yang dikontrol oleh Freecam.
      */
     Vec3 position{};
-
 
 
 
@@ -99,8 +91,6 @@ struct CameraState final {
      * ketika Freecam dimatikan.
      */
     Vec3 originalPosition{};
-
-
 
 
 
@@ -117,15 +107,11 @@ struct CameraState final {
 
 
 
-
-
     /*
      * Rotasi virtual camera.
      */
     CameraOrientation
         orientation{};
-
-
 
 
 
@@ -137,8 +123,6 @@ struct CameraState final {
      */
     CameraOrientation
         originalOrientation{};
-
-
 
 
 
@@ -163,8 +147,6 @@ struct CameraState final {
 
 
 
-
-
     /*
      * Sensitivitas kamera.
      *
@@ -175,10 +157,7 @@ struct CameraState final {
         0.15f
     };
 
-
-
 };
-
 
 
 
@@ -187,6 +166,4 @@ CameraState&
 getCameraState()
 noexcept;
 
-
-
-}
+} // namespace levifreecam::camera
