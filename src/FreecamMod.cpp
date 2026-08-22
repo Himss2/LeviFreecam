@@ -1,14 +1,10 @@
 #include "FreecamMod.hpp"
 
 
-
 #include "core/FreecamController.hpp"
 
 
 #include "camera/CameraHook.hpp"
-
-
-#include "render/FirstPersonHook.hpp"
 
 
 
@@ -17,10 +13,7 @@
 
 
 
-
 namespace levifreecam {
-
-
 
 
 
@@ -39,8 +32,6 @@ FreecamMod::instance()
 
 
 
-
-
 FreecamMod::FreecamMod()
     :
     mSelf(
@@ -50,8 +41,6 @@ FreecamMod::FreecamMod()
 {
 
 }
-
-
 
 
 
@@ -246,76 +235,13 @@ bool FreecamMod::enable()
 
 
 
-    self.getLogger()
+    self.getSelf()
+    .getLogger()
     .info(
 
         "Camera hook installed 0x{:x}",
 
         camera::cameraHookTargetAddress()
-
-    );
-
-
-
-
-
-
-
-
-
-    /*
-     *
-     * First Person Renderer Hook
-     *
-     */
-
-
-    if(
-        !render::FirstPersonHook::instance()
-        .install()
-
-    )
-
-    {
-
-
-        self.getLogger()
-        .error(
-
-            "FirstPerson hook failed"
-
-        );
-
-
-
-        camera::removeCameraHook();
-
-
-
-        mPacketHook.uninstall();
-
-
-
-        mPlayerHook.uninstall();
-
-
-
-        return false;
-
-
-    }
-
-
-
-
-
-
-
-
-    self.getLogger()
-    .info(
-
-        "FirstPerson hook installed"
 
     );
 
@@ -389,17 +315,7 @@ bool FreecamMod::enable()
 
 
 
-
-
-        render::FirstPersonHook::instance()
-        .uninstall();
-
-
-
-
-
         camera::removeCameraHook();
-
 
 
 
@@ -454,28 +370,6 @@ bool FreecamMod::disable()
 
 
     restoreAndReset();
-
-
-
-
-
-    /*
-     *
-     * Disable first person
-     *
-     */
-
-
-    render::FirstPersonHook::instance()
-    .setEnabled(
-        false
-    );
-
-
-
-    render::FirstPersonHook::instance()
-    .uninstall();
-
 
 
 
@@ -540,21 +434,6 @@ bool FreecamMod::unload()
 
 
     restoreAndReset();
-
-
-
-
-
-
-    render::FirstPersonHook::instance()
-    .setEnabled(
-        false
-    );
-
-
-
-    render::FirstPersonHook::instance()
-    .uninstall();
 
 
 
@@ -634,25 +513,6 @@ void FreecamMod::setModuleEnabled(
         enabled
 
     );
-
-
-
-
-
-    /*
-     *
-     * First person render
-     *
-     */
-
-
-    render::FirstPersonHook::instance()
-    .setEnabled(
-
-        enabled
-
-    );
-
 
 
 
@@ -770,8 +630,6 @@ void FreecamMod::restoreAndReset()
 
 
 }
-
-
 
 
 
