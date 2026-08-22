@@ -200,21 +200,6 @@ add_library(
     src/memory/CameraResolver.cpp
 
 
-
-
-
-
-    #
-    # Render Hooks
-    #
-
-    src/render/FirstPersonHook.cpp
-
-
-
-
-
-
     #
     # Legacy
     #
