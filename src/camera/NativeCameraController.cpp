@@ -24,6 +24,8 @@ constexpr char kLogTag[] =
 
 
 
+
+
 NativeCameraController&
 NativeCameraController::instance()
 noexcept
@@ -61,6 +63,7 @@ noexcept
 
 
 
+
     /*
      * Request capture kamera asli
      */
@@ -69,19 +72,16 @@ noexcept
     );
 
 
-
     state.captured.store(
         false
     );
 
 
 
+
+
     /*
-     * Reset movement.
-     *
-     * Patch 1:
-     * Kamera tidak boleh bergerak
-     * tanpa input.
+     * Reset velocity
      */
     state.velocity.x = 0.0f;
 
@@ -91,9 +91,29 @@ noexcept
 
 
 
+
+
+    /*
+     * Detach camera dari LocalPlayer.
+     *
+     * Setelah aktif:
+     *
+     * vanilla camera update
+     * tidak boleh mengambil
+     * kembali kontrol kamera.
+     */
+    state.detached.store(
+        true
+    );
+
+
+
+
     state.enabled.store(
         true
     );
+
+
 
 
 
@@ -101,6 +121,13 @@ noexcept
         ANDROID_LOG_INFO,
         kLogTag,
         "Native camera enabled"
+    );
+
+
+    __android_log_print(
+        ANDROID_LOG_INFO,
+        kLogTag,
+        "Camera detached from player"
     );
 
 
@@ -126,13 +153,18 @@ noexcept
 
 
 
+
+
     void* camera =
         mLastCameraComponent.load();
 
 
 
+
+
     if(camera)
     {
+
 
         CameraController::
         instance()
@@ -141,6 +173,7 @@ noexcept
             state.originalPosition,
             state.originalOrientation
         );
+
 
 
 
@@ -154,9 +187,15 @@ noexcept
 
 
 
+
+
+
+
     mLastCameraComponent.store(
         nullptr
     );
+
+
 
 
 
@@ -165,9 +204,11 @@ noexcept
     );
 
 
+
     state.captured.store(
         false
     );
+
 
 
     state.captureRequested.store(
@@ -175,14 +216,27 @@ noexcept
     );
 
 
+
+
     /*
-     * Bersihkan movement
+     * Kembalikan kamera
+     * ke mode vanilla.
      */
+    state.detached.store(
+        false
+    );
+
+
+
+
+
     state.velocity.x = 0.0f;
 
     state.velocity.y = 0.0f;
 
     state.velocity.z = 0.0f;
+
+
 
 
 
@@ -269,8 +323,12 @@ noexcept
 
 
 
+
+
     auto& state =
         getCameraState();
+
+
 
 
 
@@ -280,6 +338,8 @@ noexcept
     {
         return;
     }
+
+
 
 
 
@@ -293,8 +353,10 @@ noexcept
 
 
 
+
+
     /*
-     * Ambil posisi kamera asli
+     * Capture posisi camera pertama kali
      */
     if(
         state.captureRequested.load()
@@ -302,9 +364,12 @@ noexcept
     {
 
 
+
         Vec3 pos{};
 
         CameraOrientation rot{};
+
+
 
 
 
@@ -315,6 +380,8 @@ noexcept
                 cameraComponent,
                 pos
             );
+
+
 
 
 
@@ -329,6 +396,9 @@ noexcept
 
 
 
+
+
+
         if(posOK)
         {
 
@@ -336,14 +406,13 @@ noexcept
                 pos;
 
 
-            /*
-             * Freecam mulai
-             * dari posisi yang sama
-             */
+
             state.position =
                 pos;
 
         }
+
+
 
 
 
@@ -356,10 +425,15 @@ noexcept
                 rot;
 
 
+
             state.orientation =
                 rot;
 
         }
+
+
+
+
 
 
 
@@ -371,14 +445,22 @@ noexcept
 
 
 
+
+
+
         state.captureRequested.store(
             false
         );
 
 
+
         state.captured.store(
             true
         );
+
+
+
+
 
 
 
@@ -399,7 +481,10 @@ noexcept
 
 
     /*
-     * Override transform kamera
+     * Freecam takeover.
+     *
+     * Semua transform kamera
+     * berasal dari virtual camera.
      */
     if(
         state.captured.load()
@@ -414,6 +499,32 @@ noexcept
             state.position,
             state.orientation
         );
+
+
+
+
+
+
+        /*
+         * Lock tambahan.
+         *
+         * Mencegah Minecraft
+         * menulis ulang posisi
+         * player asli.
+         */
+        if(
+            state.detached.load()
+        )
+        {
+
+            CameraController::
+            instance()
+            .writePosition(
+                cameraComponent,
+                state.position
+            );
+
+        }
 
 
     }
@@ -439,12 +550,17 @@ noexcept
 
 
 
+
+
     if(
         !state.enabled.load()
     )
     {
         return;
     }
+
+
+
 
 
 
@@ -459,15 +575,12 @@ noexcept
 
 
 
+
     /*
-     * PATCH 1
+     * Movement sementara masih
+     * menunggu input hook.
      *
-     * Jangan gerakkan kamera
-     * tanpa input.
-     *
-     * Movement akan masuk
-     * setelah touch/joystick
-     * dibuat.
+     * Tidak ada auto movement.
      */
 
 
@@ -498,6 +611,8 @@ noexcept
 
 
 
+
+
     if(
         !state.enabled.load()
     )
@@ -507,11 +622,64 @@ noexcept
 
 
 
+
+
+
     state.velocity.x = x;
 
     state.velocity.y = y;
 
     state.velocity.z = z;
+
+
+
+}
+
+
+
+
+
+
+
+
+
+void NativeCameraController::rotate(
+    float yawDelta,
+    float pitchDelta
+)
+noexcept
+{
+
+    auto& state =
+        getCameraState();
+
+
+
+
+
+    if(
+        !state.enabled.load()
+    )
+    {
+        return;
+    }
+
+
+
+
+
+    state.yaw +=
+        yawDelta *
+        state.sensitivity;
+
+
+
+    state.pitch +=
+        pitchDelta *
+        state.sensitivity;
+
+
+
 
 
 
