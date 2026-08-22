@@ -1,15 +1,11 @@
 #include "hooks/PacketHook.hpp"
 
-
 #include "core/FreecamController.hpp"
-
 
 #include <android/log.h>
 
-
 #include <pl/memory/Hook.hpp>
 #include <pl/memory/Signature.hpp>
-
 
 #include <atomic>
 #include <cstddef>
@@ -17,20 +13,14 @@
 #include <string_view>
 
 
-
-
 namespace levifreecam::hooks {
-
 
 
 namespace {
 
 
-
 constexpr char kLogTag[] =
     "Levi Freecam";
-
-
 
 
 constexpr std::string_view
@@ -39,17 +29,6 @@ kMinecraftLibrary =
 
 
 
-
-
-
-/*
- *
- * LoopbackPacketSender::sendToServer
- *
- * Digunakan untuk intercept packet
- * sebelum dikirim ke server.
- *
- */
 constexpr std::string_view
 kSendToServerSignature =
 
@@ -67,17 +46,9 @@ kSendToServerSignature =
 
 
 
-
-
-
-
 constexpr std::uint32_t
 kPlayerAuthInputPacketId =
     144;
-
-
-
-
 
 
 
@@ -90,17 +61,10 @@ using SendToServerFn =
 
 
 
-
-
-
 using PacketGetIdFn =
     std::uint32_t (*)(
         const void* packet
     );
-
-
-
-
 
 
 
@@ -111,9 +75,6 @@ gOriginalSendToServer =
 
 
 
-
-
-
 void*
 gHookTarget =
     nullptr;
@@ -121,20 +82,10 @@ gHookTarget =
 
 
 
-
-
-
-
 std::atomic_bool
 gLoggedPlayerAuthInput{
-
     false
-
 };
-
-
-
-
 
 
 
@@ -142,11 +93,6 @@ gLoggedPlayerAuthInput{
 constexpr std::size_t
 kPacketGetIdVtableIndex =
     2;
-
-
-
-
-
 
 
 
@@ -160,16 +106,10 @@ noexcept
 
 {
 
-
-    if(
-        packet == nullptr
-    )
+    if(packet == nullptr)
     {
         return 0;
     }
-
-
-
 
 
 
@@ -187,44 +127,25 @@ noexcept
 
 
 
-
-
-
-    if(
-        vtable == nullptr
-    )
+    if(vtable == nullptr)
     {
         return 0;
     }
 
 
 
-
-
-
-    void*
-    entry =
+    void* entry =
 
         vtable[
-
             kPacketGetIdVtableIndex
-
         ];
 
 
 
-
-
-
-    if(
-        entry == nullptr
-    )
+    if(entry == nullptr)
     {
         return 0;
     }
-
-
-
 
 
 
@@ -238,16 +159,9 @@ noexcept
 
 
 
-
-
-
     return fn(packet);
 
 }
-
-
-
-
 
 
 
@@ -263,27 +177,15 @@ void sendToServerDetour(
 
 {
 
-
     auto original =
-
         gOriginalSendToServer;
 
 
 
-
-
-
-    if(
-        original == nullptr
-    )
+    if(original == nullptr)
     {
         return;
     }
-
-
-
-
-
 
 
 
@@ -297,18 +199,12 @@ void sendToServerDetour(
 
 
 
-
-
-
-
-
     if(
         packetId ==
         kPlayerAuthInputPacketId
     )
 
     {
-
 
         auto& controller =
 
@@ -318,27 +214,12 @@ void sendToServerDetour(
 
 
 
-
-
-
-
-
-        controller.
-
-            notePlayerAuthInput();
-
-
-
-
-
+        controller.notePlayerAuthInput();
 
 
 
         bool expected =
             false;
-
-
-
 
 
 
@@ -354,7 +235,6 @@ void sendToServerDetour(
         )
 
         {
-
 
             __android_log_print(
 
@@ -372,47 +252,26 @@ void sendToServerDetour(
 
 
 
-
-
-
-
-
         /*
          *
-         * Native Freecam input isolation
-         *
-         *
-         * Saat kamera aktif:
-         *
-         * - Camera Entity tetap menerima kontrol
-         * - LocalPlayer tidak menerima
-         *   input movement
+         * Future input isolation layer.
          *
          */
 
-
         if(
 
-            controller.
-
-            shouldSuppressPlayerAuthInput()
+            controller
+            .shouldSuppressPlayerAuthInput()
 
         )
 
         {
 
-
             return;
 
         }
 
-
     }
-
-
-
-
-
 
 
 
@@ -424,27 +283,26 @@ void sendToServerDetour(
 
     );
 
-
 }
+
+
+
+} // anonymous namespace
+
+
+
+
 
 bool PacketHook::install()
 
 {
 
-
     if(
         mInstalled
     )
     {
-
         return true;
-
     }
-
-
-
-
-
 
 
 
@@ -460,11 +318,6 @@ bool PacketHook::install()
             kMinecraftLibrary
 
         );
-
-
-
-
-
 
 
 
@@ -491,23 +344,12 @@ bool PacketHook::install()
 
 
 
-
-
-
-
     void* original =
-
         nullptr;
 
 
 
-
-
-
-
-
     void* target =
-
 
         reinterpret_cast<void*>(
 
@@ -517,24 +359,13 @@ bool PacketHook::install()
 
 
 
-
-
-
-
-
     void* detour =
-
 
         reinterpret_cast<void*>(
 
             &sendToServerDetour
 
         );
-
-
-
-
-
 
 
 
@@ -557,11 +388,6 @@ bool PacketHook::install()
 
 
 
-
-
-
-
-
     if(
 
         result != 0 ||
@@ -569,8 +395,8 @@ bool PacketHook::install()
         original == nullptr
 
     )
-    {
 
+    {
 
         __android_log_print(
 
@@ -591,11 +417,6 @@ bool PacketHook::install()
 
 
 
-
-
-
-
-
     gOriginalSendToServer =
 
 
@@ -607,19 +428,9 @@ bool PacketHook::install()
 
 
 
-
-
-
-
-
     gHookTarget =
 
         target;
-
-
-
-
-
 
 
 
@@ -631,30 +442,15 @@ bool PacketHook::install()
 
 
 
-
-
-
-
-
     mTargetAddress =
 
         targetAddress;
 
 
 
-
-
-
-
-
     mInstalled =
 
         true;
-
-
-
-
-
 
 
 
@@ -666,25 +462,15 @@ bool PacketHook::install()
 
         "Packet hook installed 0x%lx",
 
-        targetAddress
+        static_cast<unsigned long>(targetAddress)
 
     );
 
 
 
-
-
-
-
-
     return true;
 
-
 }
-
-
-
-
 
 
 
@@ -696,28 +482,20 @@ noexcept
 
 {
 
-
     if(
         !mInstalled
     )
     {
-
         return;
-
     }
-
-
-
-
-
 
 
 
     if(
         gHookTarget != nullptr
     )
-    {
 
+    {
 
         pl::memory::unhook(
 
@@ -731,35 +509,17 @@ noexcept
 
         );
 
-
     }
 
 
 
-
-
-
-
-
     gOriginalSendToServer =
-
         nullptr;
-
-
-
-
-
 
 
 
     gHookTarget =
-
         nullptr;
-
-
-
-
-
 
 
 
@@ -771,32 +531,15 @@ noexcept
 
 
 
-
-
-
-
-
     mTargetAddress =
-
         0;
 
 
 
-
-
-
-
-
     mInstalled =
-
         false;
 
-
 }
-
-
-
-
 
 
 
@@ -816,10 +559,6 @@ const noexcept
 
 
 
-
-
-
-
 std::uintptr_t
 
 PacketHook::targetAddress()
@@ -831,8 +570,6 @@ const noexcept
     return mTargetAddress;
 
 }
-
-
 
 
 
