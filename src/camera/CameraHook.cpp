@@ -77,6 +77,15 @@ gCallCounter =
 
 
 
+void*
+gLastCameraComponent =
+    nullptr;
+
+
+
+
+
+
 
 void activeCameraTransformDetour(
 
@@ -91,13 +100,9 @@ void activeCameraTransformDetour(
 
 
     /*
-     * Jalankan kamera vanilla dulu.
      *
-     * Ini penting agar:
+     * Vanilla camera update
      *
-     * - matrix tetap update
-     * - rotasi tetap valid
-     * - camera component tetap hidup
      */
 
     if(
@@ -121,6 +126,9 @@ void activeCameraTransformDetour(
 
 
 
+
+
+
     if(
         cameraComponent == nullptr
     )
@@ -131,7 +139,53 @@ void activeCameraTransformDetour(
 
 
 
+
+
+
     gCallCounter++;
+
+
+
+
+
+
+
+    /*
+     *
+     * Debug camera pointer
+     *
+     */
+
+    if(
+        cameraComponent
+        !=
+        gLastCameraComponent
+    )
+    {
+
+
+        gLastCameraComponent =
+            cameraComponent;
+
+
+
+        __android_log_print(
+
+            ANDROID_LOG_INFO,
+
+            kLogTag,
+
+            "Camera component changed : %p",
+
+            cameraComponent
+
+        );
+
+
+    }
+
+
+
 
 
 
@@ -159,16 +213,22 @@ void activeCameraTransformDetour(
 
 
 
+
+
+
+
     auto& state =
         getCameraState();
 
 
 
 
+
+
     /*
-     * Freecam belum aktif
      *
-     * Biarkan Minecraft normal.
+     * Freecam OFF
+     *
      */
 
     if(
@@ -182,12 +242,13 @@ void activeCameraTransformDetour(
 
 
 
+
+
+
     /*
-     * Simpan camera component aktif.
      *
-     * NativeCameraController
-     * membutuhkan pointer ini
-     * untuk restore.
+     * Simpan kamera aktif
+     *
      */
 
     NativeCameraController::
@@ -204,14 +265,14 @@ void activeCameraTransformDetour(
 
 
 
+
+
+
+
     /*
-     * Jika detached aktif,
      *
-     * berarti kamera sudah dilepas
-     * dari player asli.
+     * Kamera sudah detach
      *
-     * Transform akan dikontrol
-     * oleh Freecam.
      */
 
     if(
@@ -219,6 +280,12 @@ void activeCameraTransformDetour(
     )
     {
 
+
+        /*
+         *
+         * Ambil kontrol penuh
+         *
+         */
 
         NativeCameraController::
 
@@ -229,6 +296,8 @@ void activeCameraTransformDetour(
                 cameraComponent
 
             );
+
+
 
 
 
@@ -244,18 +313,24 @@ void activeCameraTransformDetour(
 
                 kLogTag,
 
-                "FREECAM CAMERA DETACHED"
+                "FREECAM DETACHED ACTIVE"
 
             );
 
         }
 
 
+
     }
 
 
 
+
 }
+
+
+
+
 
 
 
@@ -283,9 +358,13 @@ noexcept
 
 
 
+
+
     memory::CameraTargets
 
     targets{};
+
+
 
 
 
@@ -319,6 +398,8 @@ noexcept
 
 
 
+
+
     if(
         targets.activeCameraTransform
         ==
@@ -346,6 +427,8 @@ noexcept
 
 
 
+
+
     void*
 
     target =
@@ -355,6 +438,10 @@ noexcept
             targets.activeCameraTransform
 
         );
+
+
+
+
 
 
 
@@ -374,11 +461,18 @@ noexcept
 
 
 
+
+
+
     void*
 
     original =
 
         nullptr;
+
+
+
+
 
 
 
@@ -398,6 +492,9 @@ noexcept
             pl::memory::HookPriority::Normal
 
         );
+
+
+
 
 
 
@@ -432,6 +529,9 @@ noexcept
 
 
 
+
+
+
     gOriginalActiveCameraTransform =
 
         reinterpret_cast<ActiveCameraTransformFn>(
@@ -443,9 +543,15 @@ noexcept
 
 
 
+
+
+
     gHookTarget =
 
         target;
+
+
+
 
 
 
@@ -457,9 +563,15 @@ noexcept
 
 
 
+
+
+
     gInstalled =
 
         true;
+
+
+
 
 
 
@@ -480,9 +592,15 @@ noexcept
 
 
 
+
+
+
     return true;
 
+
 }
+
+
 
 
 
@@ -506,10 +624,14 @@ noexcept
 
 
 
+
+
+
     if(
         gHookTarget != nullptr
     )
     {
+
 
         pl::memory::unhook(
 
@@ -523,7 +645,11 @@ noexcept
 
         );
 
+
     }
+
+
+
 
 
 
@@ -533,8 +659,12 @@ noexcept
 
 
 
+
+
     gHookTarget =
         nullptr;
+
+
 
 
 
@@ -543,13 +673,27 @@ noexcept
 
 
 
+
+
     gCallCounter =
         0;
 
 
 
+
+
+    gLastCameraComponent =
+        nullptr;
+
+
+
+
+
     gInstalled =
         false;
+
+
+
 
 
 
@@ -574,6 +718,8 @@ noexcept
 
 
 
+
+
 bool cameraHookInstalled()
 
 noexcept
@@ -583,6 +729,9 @@ noexcept
     return gInstalled;
 
 }
+
+
+
 
 
 
@@ -601,4 +750,6 @@ noexcept
 
 
 
-} // namespace levifreecam::camera
+
+
+}
