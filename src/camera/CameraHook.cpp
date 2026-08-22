@@ -2,6 +2,8 @@
 
 
 #include "camera/NativeCameraController.hpp"
+#include "camera/CameraState.hpp"
+
 #include "memory/CameraResolver.hpp"
 
 
@@ -15,10 +17,13 @@
 
 
 
+
 namespace levifreecam::camera {
 
 
+
 namespace {
+
 
 
 constexpr char kLogTag[] =
@@ -26,21 +31,6 @@ constexpr char kLogTag[] =
 
 
 
-/*
- * Reverse Engineering prototype
- *
- * x0 :
- *      CameraShakeSupport*
- *
- * x1 :
- *      CameraComponent*
- *
- * x2 :
- *      RuntimeContext*
- *
- *
- * Kita hanya membutuhkan x1
- */
 
 using ActiveCameraTransformFn =
     void (*)(
@@ -101,15 +91,13 @@ void activeCameraTransformDetour(
 
 
     /*
-     * Minecraft camera update asli
+     * Jalankan kamera vanilla dulu.
      *
-     * WAJIB dipanggil dulu
+     * Ini penting agar:
      *
-     * agar matrix kamera,
-     * rotation,
-     * bobbing,
-     * shaking,
-     * dan interpolasi tetap normal
+     * - matrix tetap update
+     * - rotasi tetap valid
+     * - camera component tetap hidup
      */
 
     if(
@@ -117,7 +105,6 @@ void activeCameraTransformDetour(
         != nullptr
     )
     {
-
 
         gOriginalActiveCameraTransform(
 
@@ -129,35 +116,23 @@ void activeCameraTransformDetour(
 
         );
 
-
     }
 
 
 
-
-
-    /*
-     * Jangan proses object kosong
-     */
 
     if(
         cameraComponent == nullptr
     )
     {
-
         return;
-
     }
 
 
 
 
-
-    /*
-     * Debug tracking
-     */
-
     gCallCounter++;
+
 
 
 
@@ -173,7 +148,7 @@ void activeCameraTransformDetour(
 
             kLogTag,
 
-            "Camera transform active (%llu)",
+            "Camera transform active %llu",
 
             gCallCounter
 
@@ -184,12 +159,35 @@ void activeCameraTransformDetour(
 
 
 
+    auto& state =
+        getCameraState();
+
+
+
 
     /*
-     * Native Freecam takeover
+     * Freecam belum aktif
      *
-     * Setelah kamera asli selesai,
-     * kita overwrite transform
+     * Biarkan Minecraft normal.
+     */
+
+    if(
+        !state.enabled.load()
+    )
+    {
+        return;
+    }
+
+
+
+
+
+    /*
+     * Simpan camera component aktif.
+     *
+     * NativeCameraController
+     * membutuhkan pointer ini
+     * untuk restore.
      */
 
     NativeCameraController::
@@ -203,7 +201,63 @@ void activeCameraTransformDetour(
         );
 
 
+
+
+
+    /*
+     * Jika detached aktif,
+     *
+     * berarti kamera sudah dilepas
+     * dari player asli.
+     *
+     * Transform akan dikontrol
+     * oleh Freecam.
+     */
+
+    if(
+        state.detached.load()
+    )
+    {
+
+
+        NativeCameraController::
+
+            instance()
+
+            .onCameraTransform(
+
+                cameraComponent
+
+            );
+
+
+
+        if(
+            (gCallCounter % 300)
+            == 0
+        )
+        {
+
+            __android_log_print(
+
+                ANDROID_LOG_INFO,
+
+                kLogTag,
+
+                "FREECAM CAMERA DETACHED"
+
+            );
+
+        }
+
+
+    }
+
+
+
 }
+
+
 
 
 
@@ -219,16 +273,12 @@ noexcept
 
 {
 
-
     if(
         gInstalled
     )
     {
-
         return true;
-
     }
-
 
 
 
@@ -240,15 +290,12 @@ noexcept
 
 
 
-
     if(
-
         !memory::resolveCameraTargets(
 
             targets
 
         )
-
     )
     {
 
@@ -266,23 +313,16 @@ noexcept
 
         return false;
 
-
     }
 
 
 
 
 
-
-
     if(
-
         targets.activeCameraTransform
-
         ==
-
         0
-
     )
     {
 
@@ -300,9 +340,7 @@ noexcept
 
         return false;
 
-
     }
-
 
 
 
@@ -322,7 +360,6 @@ noexcept
 
 
 
-
     void*
 
     detour =
@@ -332,7 +369,6 @@ noexcept
             &activeCameraTransformDetour
 
         );
-
 
 
 
@@ -348,10 +384,7 @@ noexcept
 
 
 
-
-
     const int result =
-
 
 
         pl::memory::hook(
@@ -362,11 +395,7 @@ noexcept
 
             &original,
 
-
-
-            pl::memory::
-
-                HookPriority::Normal
+            pl::memory::HookPriority::Normal
 
         );
 
@@ -374,18 +403,11 @@ noexcept
 
 
 
-
-
     if(
-
         result != 0
-
         ||
-
         original == nullptr
-
     )
-
     {
 
 
@@ -395,16 +417,14 @@ noexcept
 
             kLogTag,
 
-            "Camera hook failed (%d)",
+            "Camera hook failed %d",
 
             result
 
         );
 
 
-
         return false;
-
 
     }
 
@@ -412,22 +432,13 @@ noexcept
 
 
 
-
     gOriginalActiveCameraTransform =
 
-
-
-        reinterpret_cast<
-
-            ActiveCameraTransformFn
-
-        >(
+        reinterpret_cast<ActiveCameraTransformFn>(
 
             original
 
         );
-
-
 
 
 
@@ -439,12 +450,9 @@ noexcept
 
 
 
-
     gTargetAddress =
 
         targets.activeCameraTransform;
-
-
 
 
 
@@ -457,14 +465,13 @@ noexcept
 
 
 
-
     __android_log_print(
 
         ANDROID_LOG_INFO,
 
         kLogTag,
 
-        "Camera hook installed : %p",
+        "Camera hook installed %p",
 
         target
 
@@ -473,12 +480,9 @@ noexcept
 
 
 
-
     return true;
 
-
 }
-
 
 
 
@@ -492,38 +496,24 @@ noexcept
 
 {
 
-
     if(
-
         !gInstalled
-
     )
     {
-
         return;
-
     }
 
 
 
 
-
-
-
     if(
-
         gHookTarget != nullptr
-
     )
-
     {
-
 
         pl::memory::unhook(
 
-
             gHookTarget,
-
 
             reinterpret_cast<void*>(
 
@@ -533,55 +523,33 @@ noexcept
 
         );
 
-
     }
 
 
 
 
-
-
-
     gOriginalActiveCameraTransform =
-
         nullptr;
-
-
-
 
 
 
     gHookTarget =
-
         nullptr;
 
 
 
-
-
-
     gTargetAddress =
-
         0;
-
-
-
 
 
 
     gCallCounter =
-
         0;
 
 
 
-
-
-
     gInstalled =
-
         false;
-
 
 
 
@@ -606,7 +574,6 @@ noexcept
 
 
 
-
 bool cameraHookInstalled()
 
 noexcept
@@ -616,8 +583,6 @@ noexcept
     return gInstalled;
 
 }
-
-
 
 
 
@@ -636,5 +601,4 @@ noexcept
 
 
 
-
-}
+} // namespace levifreecam::camera
