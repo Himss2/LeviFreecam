@@ -13,7 +13,10 @@
 
 
 
+
 namespace levifreecam {
+
+
 
 
 
@@ -32,6 +35,8 @@ FreecamMod::instance()
 
 
 
+
+
 FreecamMod::FreecamMod()
     :
     mSelf(
@@ -41,6 +46,8 @@ FreecamMod::FreecamMod()
 {
 
 }
+
+
 
 
 
@@ -235,8 +242,7 @@ bool FreecamMod::enable()
 
 
 
-    self.getSelf()
-    .getLogger()
+    self.getLogger()
     .info(
 
         "Camera hook installed 0x{:x}",
