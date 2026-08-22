@@ -426,3 +426,414 @@ void sendToServerDetour(
 
 
 }
+
+bool PacketHook::install()
+
+{
+
+
+    if(
+        mInstalled
+    )
+    {
+
+        return true;
+
+    }
+
+
+
+
+
+
+
+
+    const auto targetAddress =
+
+
+        pl::memory::
+
+        resolveSignature(
+
+            kSendToServerSignature,
+
+            kMinecraftLibrary
+
+        );
+
+
+
+
+
+
+
+
+    if(
+        targetAddress == 0
+    )
+    {
+
+        __android_log_print(
+
+            ANDROID_LOG_ERROR,
+
+            kLogTag,
+
+            "Failed resolve sendToServer"
+
+        );
+
+
+        return false;
+
+    }
+
+
+
+
+
+
+
+
+    void* original =
+
+        nullptr;
+
+
+
+
+
+
+
+
+    void* target =
+
+
+        reinterpret_cast<void*>(
+
+            targetAddress
+
+        );
+
+
+
+
+
+
+
+
+    void* detour =
+
+
+        reinterpret_cast<void*>(
+
+            &sendToServerDetour
+
+        );
+
+
+
+
+
+
+
+
+    const int result =
+
+
+        pl::memory::hook(
+
+            target,
+
+            detour,
+
+            &original,
+
+            pl::memory::
+
+            HookPriority::Normal
+
+        );
+
+
+
+
+
+
+
+
+    if(
+
+        result != 0 ||
+
+        original == nullptr
+
+    )
+    {
+
+
+        __android_log_print(
+
+            ANDROID_LOG_ERROR,
+
+            kLogTag,
+
+            "Packet hook failed %d",
+
+            result
+
+        );
+
+
+        return false;
+
+    }
+
+
+
+
+
+
+
+
+    gOriginalSendToServer =
+
+
+        reinterpret_cast<SendToServerFn>(
+
+            original
+
+        );
+
+
+
+
+
+
+
+
+    gHookTarget =
+
+        target;
+
+
+
+
+
+
+
+
+    gLoggedPlayerAuthInput.store(
+
+        false
+
+    );
+
+
+
+
+
+
+
+
+    mTargetAddress =
+
+        targetAddress;
+
+
+
+
+
+
+
+
+    mInstalled =
+
+        true;
+
+
+
+
+
+
+
+
+    __android_log_print(
+
+        ANDROID_LOG_INFO,
+
+        kLogTag,
+
+        "Packet hook installed 0x%lx",
+
+        targetAddress
+
+    );
+
+
+
+
+
+
+
+
+    return true;
+
+
+}
+
+
+
+
+
+
+
+
+
+void PacketHook::uninstall()
+
+noexcept
+
+{
+
+
+    if(
+        !mInstalled
+    )
+    {
+
+        return;
+
+    }
+
+
+
+
+
+
+
+
+    if(
+        gHookTarget != nullptr
+    )
+    {
+
+
+        pl::memory::unhook(
+
+            gHookTarget,
+
+            reinterpret_cast<void*>(
+
+                &sendToServerDetour
+
+            )
+
+        );
+
+
+    }
+
+
+
+
+
+
+
+
+    gOriginalSendToServer =
+
+        nullptr;
+
+
+
+
+
+
+
+
+    gHookTarget =
+
+        nullptr;
+
+
+
+
+
+
+
+
+    gLoggedPlayerAuthInput.store(
+
+        false
+
+    );
+
+
+
+
+
+
+
+
+    mTargetAddress =
+
+        0;
+
+
+
+
+
+
+
+
+    mInstalled =
+
+        false;
+
+
+}
+
+
+
+
+
+
+
+
+
+bool PacketHook::installed()
+
+const noexcept
+
+{
+
+    return mInstalled;
+
+}
+
+
+
+
+
+
+
+
+
+std::uintptr_t
+
+PacketHook::targetAddress()
+
+const noexcept
+
+{
+
+    return mTargetAddress;
+
+}
+
+
+
+
+
+} // namespace levifreecam::hooks
