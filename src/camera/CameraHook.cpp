@@ -1,6 +1,7 @@
 #include "camera/CameraHook.hpp"
 
 
+#include "camera/CameraEntityTracker.hpp"
 #include "camera/NativeCameraController.hpp"
 #include "camera/CameraState.hpp"
 
@@ -32,12 +33,14 @@ constexpr char kLogTag[] =
 
 
 
+
 using ActiveCameraTransformFn =
     void (*)(
         void* shakeSupport,
         void* cameraComponent,
         void* runtimeContext
     );
+
 
 
 
@@ -49,9 +52,11 @@ gOriginalActiveCameraTransform =
 
 
 
+
 void*
 gHookTarget =
     nullptr;
+
 
 
 
@@ -63,9 +68,11 @@ gTargetAddress =
 
 
 
+
 bool
 gInstalled =
     false;
+
 
 
 
@@ -77,9 +84,12 @@ gCallCounter =
 
 
 
+
 void*
 gLastCameraComponent =
     nullptr;
+
+
 
 
 
@@ -101,9 +111,16 @@ void activeCameraTransformDetour(
 
     /*
      *
-     * Vanilla camera update
+     * Jalankan kamera vanilla dulu
+     *
+     * agar:
+     *
+     * - matrix kamera valid
+     * - rotasi valid
+     * - interpolasi tetap berjalan
      *
      */
+
 
     if(
         gOriginalActiveCameraTransform
@@ -150,11 +167,13 @@ void activeCameraTransformDetour(
 
 
 
+
     /*
      *
-     * Debug camera pointer
+     * Track pergantian CameraComponent
      *
      */
+
 
     if(
         cameraComponent
@@ -166,6 +185,7 @@ void activeCameraTransformDetour(
 
         gLastCameraComponent =
             cameraComponent;
+
 
 
 
@@ -183,6 +203,7 @@ void activeCameraTransformDetour(
 
 
     }
+
 
 
 
@@ -217,8 +238,11 @@ void activeCameraTransformDetour(
 
 
 
+
     auto& state =
         getCameraState();
+
+
 
 
 
@@ -231,12 +255,16 @@ void activeCameraTransformDetour(
      *
      */
 
+
     if(
         !state.enabled.load()
     )
     {
+
         return;
+
     }
+
 
 
 
@@ -247,9 +275,27 @@ void activeCameraTransformDetour(
 
     /*
      *
-     * Simpan kamera aktif
+     * Simpan camera component
+     *
+     * dan ambil kontrol transform
      *
      */
+
+
+    CameraEntityTracker::
+
+        instance()
+
+        .track(
+
+            cameraComponent
+
+        );
+
+
+
+
+
 
     NativeCameraController::
 
@@ -271,9 +317,10 @@ void activeCameraTransformDetour(
 
     /*
      *
-     * Kamera sudah detach
+     * Kamera sudah detached
      *
      */
+
 
     if(
         state.detached.load()
@@ -281,31 +328,12 @@ void activeCameraTransformDetour(
     {
 
 
-        /*
-         *
-         * Ambil kontrol penuh
-         *
-         */
-
-        NativeCameraController::
-
-            instance()
-
-            .onCameraTransform(
-
-                cameraComponent
-
-            );
-
-
-
-
-
         if(
             (gCallCounter % 300)
             == 0
         )
         {
+
 
             __android_log_print(
 
@@ -317,11 +345,12 @@ void activeCameraTransformDetour(
 
             );
 
+
         }
 
 
-
     }
+
 
 
 
@@ -360,9 +389,13 @@ noexcept
 
 
 
+
+
     memory::CameraTargets
 
     targets{};
+
+
 
 
 
@@ -400,6 +433,8 @@ noexcept
 
 
 
+
+
     if(
         targets.activeCameraTransform
         ==
@@ -422,6 +457,8 @@ noexcept
         return false;
 
     }
+
+
 
 
 
@@ -456,6 +493,7 @@ noexcept
             &activeCameraTransformDetour
 
         );
+
 
 
 
@@ -500,6 +538,7 @@ noexcept
 
 
 
+
     if(
         result != 0
         ||
@@ -532,6 +571,7 @@ noexcept
 
 
 
+
     gOriginalActiveCameraTransform =
 
         reinterpret_cast<ActiveCameraTransformFn>(
@@ -539,6 +579,8 @@ noexcept
             original
 
         );
+
+
 
 
 
@@ -556,6 +598,8 @@ noexcept
 
 
 
+
+
     gTargetAddress =
 
         targets.activeCameraTransform;
@@ -566,9 +610,12 @@ noexcept
 
 
 
+
+
     gInstalled =
 
         true;
+
 
 
 
@@ -588,6 +635,8 @@ noexcept
         target
 
     );
+
+
 
 
 
@@ -618,8 +667,12 @@ noexcept
         !gInstalled
     )
     {
+
         return;
+
     }
+
+
 
 
 
@@ -647,6 +700,8 @@ noexcept
 
 
     }
+
+
 
 
 
@@ -691,6 +746,7 @@ noexcept
 
     gInstalled =
         false;
+
 
 
 
@@ -747,8 +803,6 @@ noexcept
     return gTargetAddress;
 
 }
-
-
 
 
 
