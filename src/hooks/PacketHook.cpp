@@ -18,6 +18,7 @@
 
 
 
+
 namespace levifreecam::hooks {
 
 
@@ -25,8 +26,10 @@ namespace levifreecam::hooks {
 namespace {
 
 
+
 constexpr char kLogTag[] =
     "Levi Freecam";
+
 
 
 
@@ -38,11 +41,14 @@ kMinecraftLibrary =
 
 
 
+
 /*
+ *
  * LoopbackPacketSender::sendToServer
  *
- * Tetap dipakai untuk tracking
- * PlayerAuthInput.
+ * Digunakan untuk intercept packet
+ * sebelum dikirim ke server.
+ *
  */
 constexpr std::string_view
 kSendToServerSignature =
@@ -62,9 +68,15 @@ kSendToServerSignature =
 
 
 
+
+
+
 constexpr std::uint32_t
 kPlayerAuthInputPacketId =
     144;
+
+
+
 
 
 
@@ -78,10 +90,16 @@ using SendToServerFn =
 
 
 
+
+
+
 using PacketGetIdFn =
     std::uint32_t (*)(
         const void* packet
     );
+
+
+
 
 
 
@@ -93,16 +111,29 @@ gOriginalSendToServer =
 
 
 
+
+
+
 void*
 gHookTarget =
     nullptr;
 
 
 
+
+
+
+
+
 std::atomic_bool
 gLoggedPlayerAuthInput{
+
     false
+
 };
+
+
+
 
 
 
@@ -117,29 +148,51 @@ kPacketGetIdVtableIndex =
 
 
 
+
+
+
 std::uint32_t getPacketId(
+
     const void* packet
+
 )
 noexcept
+
 {
 
-    if(packet == nullptr)
+
+    if(
+        packet == nullptr
+    )
     {
         return 0;
     }
+
+
+
 
 
 
     void** vtable =
+
         *reinterpret_cast<void***>(
+
             const_cast<void*>(
+
                 packet
+
             )
+
         );
 
 
 
-    if(vtable == nullptr)
+
+
+
+    if(
+        vtable == nullptr
+    )
     {
         return 0;
     }
@@ -147,26 +200,44 @@ noexcept
 
 
 
-    void* entry =
+
+
+    void*
+    entry =
+
         vtable[
+
             kPacketGetIdVtableIndex
+
         ];
 
 
 
-    if(entry == nullptr)
+
+
+
+    if(
+        entry == nullptr
+    )
     {
         return 0;
     }
 
 
 
+
+
+
     auto fn =
-        reinterpret_cast<
-            PacketGetIdFn
-        >(
+
+        reinterpret_cast<PacketGetIdFn>(
+
             entry
+
         );
+
+
+
 
 
 
@@ -183,18 +254,28 @@ noexcept
 
 
 void sendToServerDetour(
+
     void* sender,
+
     void* packet
+
 )
+
 {
 
 
     auto original =
+
         gOriginalSendToServer;
 
 
 
-    if(original == nullptr)
+
+
+
+    if(
+        original == nullptr
+    )
     {
         return;
     }
@@ -203,10 +284,19 @@ void sendToServerDetour(
 
 
 
+
+
+
     const auto packetId =
+
         getPacketId(
+
             packet
+
         );
+
+
+
 
 
 
@@ -216,16 +306,29 @@ void sendToServerDetour(
         packetId ==
         kPlayerAuthInputPacketId
     )
+
     {
 
+
         auto& controller =
+
             FreecamController::
+
             instance();
 
 
 
+
+
+
+
+
         controller.
-        notePlayerAuthInput();
+
+            notePlayerAuthInput();
+
+
+
 
 
 
@@ -236,21 +339,33 @@ void sendToServerDetour(
 
 
 
+
+
+
         if(
             gLoggedPlayerAuthInput
             .compare_exchange_strong(
+
                 expected,
+
                 true
+
             )
         )
+
         {
 
+
             __android_log_print(
+
                 ANDROID_LOG_INFO,
+
                 kLogTag,
 
                 "PlayerAuthInput detected id=%u",
+
                 packetId
+
             );
 
         }
@@ -260,22 +375,41 @@ void sendToServerDetour(
 
 
 
+
+
         /*
-         * IMPORTANT
          *
-         * Native Freecam mode:
+         * Native Freecam input isolation
          *
-         * Tidak block packet.
          *
-         * Player tetap sinkron
-         * dengan server.
+         * Saat kamera aktif:
          *
-         * Freeze dilakukan
-         * pada LocalPlayer,
-         * bukan packet layer.
+         * - Camera Entity tetap menerima kontrol
+         * - LocalPlayer tidak menerima
+         *   input movement
+         *
          */
 
+
+        if(
+
+            controller.
+
+            shouldSuppressPlayerAuthInput()
+
+        )
+
+        {
+
+
+            return;
+
+        }
+
+
     }
+
+
 
 
 
@@ -283,250 +417,12 @@ void sendToServerDetour(
 
 
     original(
+
         sender,
+
         packet
+
     );
-
-
-}
-
-
-
-
-
-}
-
-
-
-
-
-
-
-
-
-bool PacketHook::install()
-{
-
-    if(mInstalled)
-    {
-        return true;
-    }
-
-
-
-
-
-
-    const auto targetAddress =
-
-        pl::memory::
-        resolveSignature(
-            kSendToServerSignature,
-            kMinecraftLibrary
-        );
-
-
-
-
-
-    if(targetAddress == 0)
-    {
-        return false;
-    }
-
-
-
-
-
-
-    void* original =
-        nullptr;
-
-
-
-    void* target =
-        reinterpret_cast<void*>(
-            targetAddress
-        );
-
-
-
-    void* detour =
-        reinterpret_cast<void*>(
-            &sendToServerDetour
-        );
-
-
-
-
-
-
-    const int result =
-
-        pl::memory::hook(
-            target,
-            detour,
-            &original,
-            pl::memory::
-            HookPriority::Normal
-        );
-
-
-
-
-
-
-    if(
-        result != 0 ||
-        original == nullptr
-    )
-    {
-        return false;
-    }
-
-
-
-
-
-
-    gOriginalSendToServer =
-
-        reinterpret_cast<
-            SendToServerFn
-        >(
-            original
-        );
-
-
-
-
-    gHookTarget =
-        target;
-
-
-
-
-    gLoggedPlayerAuthInput.store(
-        false
-    );
-
-
-
-
-    mTargetAddress =
-        targetAddress;
-
-
-
-    mInstalled =
-        true;
-
-
-
-
-    return true;
-
-}
-
-
-
-
-
-
-
-
-
-void PacketHook::uninstall()
-noexcept
-{
-
-    if(!mInstalled)
-    {
-        return;
-    }
-
-
-
-
-
-    if(gHookTarget)
-    {
-
-        pl::memory::unhook(
-            gHookTarget,
-
-            reinterpret_cast<void*>(
-                &sendToServerDetour
-            )
-        );
-
-    }
-
-
-
-
-
-
-    gOriginalSendToServer =
-        nullptr;
-
-
-
-    gHookTarget =
-        nullptr;
-
-
-
-    gLoggedPlayerAuthInput.store(
-        false
-    );
-
-
-
-    mTargetAddress =
-        0;
-
-
-
-    mInstalled =
-        false;
-
-
-}
-
-
-
-
-
-
-
-
-
-bool PacketHook::installed()
-const noexcept
-{
-
-    return mInstalled;
-
-}
-
-
-
-
-
-
-
-
-
-std::uintptr_t
-PacketHook::targetAddress()
-const noexcept
-{
-
-    return mTargetAddress;
-
-}
-
 
 
 }
