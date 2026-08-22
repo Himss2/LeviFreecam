@@ -186,6 +186,8 @@ add_library(
 
     src/camera/CameraHook.cpp
 
+    src/camera/CameraEntityTracker.cpp
+
     src/camera/CameraSystemHook.cpp
 
 
